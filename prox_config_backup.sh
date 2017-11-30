@@ -59,7 +59,7 @@ sleep 10s
 
 function startservices {
 # restart services
-for i in qemu-server vz pvedaemon pve-cluster; do systemctl stop $i ; done
+for i in qemu-server vz pvedaemon pve-cluster; do systemctl start $i ; done
 # Make sure that all VMs + LXC containers are running
 qm startall
 }
