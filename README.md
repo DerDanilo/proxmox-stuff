@@ -10,7 +10,6 @@ I just wrote this script quick and dirty. Not tested yet! But it might still be 
 
 ### Backup
 * Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh)  
-One liner:  
 ```cd /root/; wget -qO- https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh```
 * Set the permanent backups directory ```_bdir="/path/to/backup/directory"```
 * Make the script executable ```chmod +x ./prox_config_backup.sh```
