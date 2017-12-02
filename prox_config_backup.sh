@@ -1,23 +1,24 @@
 #/bin/bash
-# Version	0.1 - BETA ! !
-# Date		30.11.2017
+# Version	0.2 - BETA ! !
+# Date		02.12.2017
 # Author 	DerDanilo
 
 # set vars
-_now=$(date +%Y-%m-%d.%H.%M.%S)
-# temporary storage directory
-_tdir="/var/tmp"
+
 # permanent backups directory
 _bdir="/mnt/backups/proxmox"
 
+# temporary storage directory
+_tdir="/var/tmp"
+
+
 # Don't change if not required
+_now=$(date +%Y-%m-%d.%H.%M.%S)
 _HOSTNAME=$(hostname -f)
 _filename1="$_tdir/proxmoxetc.$_now.tar"
 _filename2="$_tdir/proxmoxpve.$_now.tar"
 _filename3="$_tdir/proxmoxroot.$_now.tar"
-_filename4="$_tdir/proxmox_backup.$_HOSTNAME.$_now".tar.gz"
-
-
+_filename4="$_tdir/proxmox_backup_"$_HOSTNAME"_"$_now".tar.gz"
 
 ##########
 
@@ -25,27 +26,27 @@ function description {
 clear
 cat <<EOF
 
-Proxmox Server Config Backup
-Hostname: "$_HOSTNAME"
-Timestamp: "$_now"
+	Proxmox Server Config Backup
+	Hostname: "$_HOSTNAME"
+	Timestamp: "$_now"
 
-Files to be saved: 
-"/etc/*, /var/lib/pve-cluster/*, /root/*"
+	Files to be saved: 
+	"/etc/*, /var/lib/pve-cluster/*, /root/*"
 
-Backup target:
-"$_bdir"
------------------------------------------------------------------
+	Backup target:
+	"$_bdir"
+	-----------------------------------------------------------------
 
-This script is supposed to backup your node config and not VM
-or LXC container data. To backups your instances please use the 
-build in backup feature or a backup soluiton that runs within 
-your instances.
+	This script is supposed to backup your node config and not VM
+	or LXC container data. To backups your instances please use the 
+	build in backup feature or a backup soluiton that runs within 
+	your instances.
 
-For questions or suggestions please contact me at
-https://github.com/DerDanilo/proxmox-stuff
------------------------------------------------------------------
+	For questions or suggestions please contact me at
+	https://github.com/DerDanilo/proxmox-stuff
+	-----------------------------------------------------------------
 
-Hit return to proceed or CTRL-C to abort.
+	Hit return to proceed or CTRL-C to abort.
 
 EOF
 read dummy
@@ -59,6 +60,7 @@ fi
 }
 
 function copyfilesystem {
+echo "Tar files"
 # copy key system files
 tar -cvf "$_filename1" /etc/*
 tar -cvf "$_filename2" /var/lib/pve-cluster/*
@@ -66,15 +68,17 @@ tar -cvf "$_filename3" /root/*
 }
 
 function compressandarchive {
+echo "Compressing files"
 # archive the copied system files
-tar -cvzf "$_filename4" $_tdir/*.tar && rm "$_filename1" && rm "$_filename2"
+tar -cvzf "$_filename4" $_tdir/*.tar
 
 # copy config archive to backup folder
 # this may be replaced by scp command to place in remote location
 cp $_filename4 $_bdir/
 
+echo "Cleaning up temp files"
 # remove temp backup file
-rm "$_filename4"
+rm $_filename4
 # remove backup leftovers
 for f in "$_filename1" "$_filename2" "$_filename3" ; do rm $f ; done
 }
@@ -108,4 +112,3 @@ copyfilesystem
 #startservices
 
 compressandarchive
-
