@@ -30,7 +30,7 @@ Hostname: "$_HOSTNAME"
 Timestamp: "$_now"
 
 Files to be saved: 
-"/etc/*, /var/lib/pve-cluster/*", /root/*"
+"/etc/*, /var/lib/pve-cluster/*, /root/*"
 
 Backup target:
 "$_bdir"
