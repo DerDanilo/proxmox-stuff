@@ -87,8 +87,8 @@ mv "$_filename3.gz" "$_bdir/proxmoxconfig.$_now.tar.gz"
 
 description
 are-we-root-abort-if-not
-stopservices
+#stopservices
 copyfilesystem
-startservices
+#startservices
 compressandarchive
 
