@@ -14,8 +14,9 @@ _bdir="/mnt/backups/proxmox"
 _filename1="$_tdir/proxmoxetc.$_now.tar"
 _filename2="$_tdir/proxmoxpve.$_now.tar"
 _filename3="$_tdir/proxmoxroot.$_now.tar"
-_filename4="$_tdir/proxmoxconfig.$_now.tar"
+_filename4="$_tdir/$_HOSTNAME_proxmox_backup.$_now.tar.gz"
 
+_HOSTNAME=$(hostname -f)
 
 ##########
 
@@ -74,12 +75,11 @@ tar -cvf "$_filename3" /root/*
 
 function compressandarchive {
 # archive the moved system file
-tar -cvf "$_filename4" $_tdir/*.tar && rm "$_filename1" && rm "$_filename2"
+tar -cvzf "$_filename4" $_tdir/*.tar && rm "$_filename1" && rm "$_filename2"
 cd "$_tdir"
-gzip "$_filename4"
 
 # Move config archive to backup folder
-mv "$_filename4.gz" "$_bdir/proxmoxconfig.$_now.tar.gz"
+mv $_filename4 $_bdir/
 }
 
 
