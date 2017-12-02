@@ -75,7 +75,7 @@ tar -cvf "$_filename3" /root/*
 function compressandarchive {
 # archive the moved system file
 tar -cvf "$_filename4" $_tdir/*.tar && rm "$_filename1" && rm "$_filename2"
-cd "$_tdir
+cd "$_tdir"
 gzip "$_filename4"
 
 # Move config archive to backup folder
