@@ -25,27 +25,27 @@ function description {
 clear
 cat <<EOF
 
-  Proxmox Server Config Backup
-  Hostname: "$_HOSTNAME"
-  Timestamp: "$_now"
-  
-  Files to be saved: 
-  "/etc/*, /var/lib/pve-cluster/*", /root/*"
-  
-  Backup target:
-  "$_bdir"
-  -----------------------------------------------------------------
+Proxmox Server Config Backup
+Hostname: "$_HOSTNAME"
+Timestamp: "$_now"
 
-  This backup script is only ment to run on machines where ALL 
-  VMs/Containers are in status 'stopped' (not running anymore).
-  Otherwise something probably will go terrible wrong and you 
-  might loose valuable data!
+Files to be saved: 
+"/etc/*, /var/lib/pve-cluster/*", /root/*"
 
-  For questions or suggestions please contact me at
-  https://github.com/DerDanilo/proxmox-stuff
-  -----------------------------------------------------------------
+Backup target:
+"$_bdir"
+-----------------------------------------------------------------
 
-  Hit return to proceed or CTRL-C to abort.
+This script is supposed to backup your node config and not VM
+or LXC container data. To backups your instances please use the 
+build in backup feature or a backup soluiton that runs within 
+your instances.
+
+For questions or suggestions please contact me at
+https://github.com/DerDanilo/proxmox-stuff
+-----------------------------------------------------------------
+
+Hit return to proceed or CTRL-C to abort.
 
 EOF
 read dummy
@@ -56,20 +56,6 @@ function are-we-root-abort-if-not {
 if [[ ${EUID} -ne 0 ]] ; then
   echo "Aborting because you are not root" ; exit 1
 fi
-}
-
-function stopservices {
-# stop host services
-for i in pve-cluster pvedaemon vz qemu-server; do systemctl stop $i ; done
-# give them a moment to finish
-sleep 10s
-}
-
-function startservices {
-# restart services
-for i in qemu-server vz pvedaemon pve-cluster; do systemctl start $i ; done
-# Make sure that all VMs + LXC containers are running
-qm startall
 }
 
 function copyfilesystem {
@@ -93,15 +79,33 @@ rm "$_filename4"
 for f in "$_filename1" "$_filename2" "$_filename3" ; do rm $f ; done
 }
 
+function stopservices {
+# stop host services
+for i in pve-cluster pvedaemon vz qemu-server; do systemctl stop $i ; done
+# give them a moment to finish
+sleep 10s
+}
 
+function startservices {
+# restart services
+for i in qemu-server vz pvedaemon pve-cluster; do systemctl start $i ; done
+# Make sure that all VMs + LXC containers are running
+qm startall
+}
 
 ##########
 
 
 description
 are-we-root-abort-if-not
+
+# We don't need to stop services, but you can do that if you wish
 #stopservices
+
 copyfilesystem
+
+# We don't need to start services if we did not stop them
 #startservices
+
 compressandarchive
 
