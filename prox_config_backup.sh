@@ -13,7 +13,8 @@ _bdir="/mnt/backups/proxmox"
 # Don't change if not required
 _filename1="$_tdir/proxmoxetc.$_now.tar"
 _filename2="$_tdir/proxmoxpve.$_now.tar"
-_filename3="$_tdir/proxmoxconfig.$_now.tar"
+_filename3="$_tdir/proxmoxroot.$_now.tar"
+_filename4="$_tdir/proxmoxconfig.$_now.tar"
 
 
 ##########
@@ -25,7 +26,7 @@ cat <<EOF
   Proxmox Server Config Backup
 
   Files to be saved: 
-  "/etc/*, /var/lib/pve-cluster/*"
+  "/etc/*, /var/lib/pve-cluster/*", /root/*"
   -----------------------------------------------------------------
 
   This backup script is only ment to run on machines where ALL 
@@ -68,16 +69,17 @@ function copyfilesystem {
 # copy key system files
 tar -cvf "$_filename1" /etc/*
 tar -cvf "$_filename2" /var/lib/pve-cluster/*
+tar -cvf "$_filename3" /root/*
 }
 
 function compressandarchive {
 # archive the moved system file
-tar -cvf "$_filename3" $_tdir/*.tar && rm "$_filename1" && rm "$_filename2"
+tar -cvf "$_filename4" $_tdir/*.tar && rm "$_filename1" && rm "$_filename2"
 cd "$_tdir
-gzip "$_filename3"
+gzip "$_filename4"
 
 # Move config archive to backup folder
-mv "$_filename3.gz" "$_bdir/proxmoxconfig.$_now.tar.gz"
+mv "$_filename4.gz" "$_bdir/proxmoxconfig.$_now.tar.gz"
 }
 
 
