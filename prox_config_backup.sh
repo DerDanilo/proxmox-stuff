@@ -11,12 +11,13 @@ _tdir="/var/tmp"
 _bdir="/mnt/backups/proxmox"
 
 # Don't change if not required
+_HOSTNAME=$(hostname -f)
 _filename1="$_tdir/proxmoxetc.$_now.tar"
 _filename2="$_tdir/proxmoxpve.$_now.tar"
 _filename3="$_tdir/proxmoxroot.$_now.tar"
-_filename4="$_tdir/$_HOSTNAME_proxmox_backup.$_now.tar.gz"
+_filename4="$_tdir/proxmox_backup.$_HOSTNAME.$_now".tar.gz"
 
-_HOSTNAME=$(hostname -f)
+
 
 ##########
 
@@ -25,9 +26,14 @@ clear
 cat <<EOF
 
   Proxmox Server Config Backup
-
+  Hostname: "$_HOSTNAME"
+  Timestamp: "$_now"
+  
   Files to be saved: 
   "/etc/*, /var/lib/pve-cluster/*", /root/*"
+  
+  Backup target:
+  "$_bdir"
   -----------------------------------------------------------------
 
   This backup script is only ment to run on machines where ALL 
@@ -74,12 +80,17 @@ tar -cvf "$_filename3" /root/*
 }
 
 function compressandarchive {
-# archive the moved system file
+# archive the copied system files
 tar -cvzf "$_filename4" $_tdir/*.tar && rm "$_filename1" && rm "$_filename2"
-cd "$_tdir"
 
-# Move config archive to backup folder
-mv $_filename4 $_bdir/
+# copy config archive to backup folder
+# this may be replaced by scp command to place in remote location
+cp $_filename4 $_bdir/
+
+# remove temp backup file
+rm "$_filename4"
+# remove backup leftovers
+for f in "$_filename1" "$_filename2" "$_filename3" ; do rm $f ; done
 }
 
 
