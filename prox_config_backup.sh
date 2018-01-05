@@ -1,6 +1,6 @@
 #/bin/bash
-# Version	0.2 - BETA ! !
-# Date		02.12.2017
+# Version	0.2.1 - BETA ! !
+# Date		05.05.2018
 # Author 	DerDanilo
 
 # set vars
@@ -62,9 +62,9 @@ fi
 function copyfilesystem {
 echo "Tar files"
 # copy key system files
-tar -cvf "$_filename1" /etc/*
-tar -cvf "$_filename2" /var/lib/pve-cluster/*
-tar -cvf "$_filename3" /root/*
+tar -cvf "$_filename1" /etc/.
+tar -cvf "$_filename2" /var/lib/pve-cluster/.
+tar -cvf "$_filename3" /root/.
 }
 
 function compressandarchive {
