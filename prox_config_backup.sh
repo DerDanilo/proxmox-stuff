@@ -5,12 +5,26 @@
 
 # set vars
 
+# always exit on error
+set -e
+
 # permanent backups directory
-_bdir="/mnt/backups/proxmox"
+# default value can be overridden by setting environment variable before running prox_config_backup.sh
+# example: export BACKUP_DIR="/mnt/pve/media/backup
+_bdir=${BACKUP_DIR:-/mnt/backups/proxmox}
 
 # temporary storage directory
-_tdir="/var/tmp"
+_tdir=${TMP_DIR:-/var/tmp}
 
+_tdir=$(mktemp -d $_tdir/proxmox-XXXXXXXX)
+
+function clean_up {
+    echo "Cleaning up"
+    rm -rf $_tdir
+}
+
+# register the cleanup function to be called on the EXIT signal
+trap clean_up EXIT
 
 # Don't change if not required
 _now=$(date +%Y-%m-%d.%H.%M.%S)
@@ -48,7 +62,7 @@ function description {
 
         Hit return to proceed or CTRL-C to abort.
 
-    EOF
+EOF
     read dummy
     clear
 }
@@ -75,12 +89,6 @@ function compressandarchive {
     # copy config archive to backup folder
     # this may be replaced by scp command to place in remote location
     cp $_filename4 $_bdir/
-
-    echo "Cleaning up temp files"
-    # remove temp backup file
-    rm $_filename4
-    # remove backup leftovers
-    for f in "$_filename1" "$_filename2" "$_filename3" ; do rm $f ; done
 }
 
 function stopservices {
