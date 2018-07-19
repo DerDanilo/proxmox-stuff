@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 # Version	0.2.1 - BETA ! !
 # Date		05.05.2018
 # Author 	DerDanilo
