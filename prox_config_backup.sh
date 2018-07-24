@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 # Version	0.2.1 - BETA ! !
 # Date		05.05.2018
 # Author 	DerDanilo
@@ -76,15 +76,15 @@ function are-we-root-abort-if-not {
 function copyfilesystem {
     echo "Tar files"
     # copy key system files
-    tar -cvf "$_filename1" /etc/.
-    tar -cvf "$_filename2" /var/lib/pve-cluster/.
-    tar -cvf "$_filename3" /root/.
+    tar --warning='no-file-ignored' -cvPf "$_filename1" /etc/.
+    tar --warning='no-file-ignored' -cvPf "$_filename2" /var/lib/pve-cluster/.
+    tar --warning='no-file-ignored' -cvPf "$_filename3" /root/.
 }
 
 function compressandarchive {
     echo "Compressing files"
     # archive the copied system files
-    tar -cvzf "$_filename4" $_tdir/*.tar
+    tar -cvzPf "$_filename4" $_tdir/*.tar
 
     # copy config archive to backup folder
     # this may be replaced by scp command to place in remote location
