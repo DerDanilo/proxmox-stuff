@@ -39,11 +39,6 @@ sub quobyte_mount {
 
 # Configuration
 
-# API version
-sub api {
-    return 1;
-}
-
 sub type {
     return 'quobyte';
 }
@@ -285,3 +280,9 @@ sub deactivate_volume {
 }
 
 1;
+
+# API version
+sub api {
+    return 1;
+}
+
