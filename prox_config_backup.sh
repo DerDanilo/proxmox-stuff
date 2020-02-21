@@ -1,7 +1,8 @@
 #!/bin/bash
-# Version	0.2.1 - BETA ! !
-# Date		05.05.2018
-# Author 	DerDanilo
+# Version	      0.2.2 - BETA ! !
+# Date		      02.20.2020
+# Author 	      DerDanilo 
+# Contributors    bootsie123
 
 # set vars
 
@@ -11,7 +12,10 @@ set -e
 # permanent backups directory
 # default value can be overridden by setting environment variable before running prox_config_backup.sh
 # example: export BACKUP_DIR="/mnt/pve/media/backup
-_bdir=${BACKUP_DIR:-/mnt/backups/proxmox}
+_bdir=${BACK_DIR:-/mnt/backups/proxmox}
+
+# number of backups to keep before overriding the oldest one
+MAX_BACKUPS=5
 
 # temporary storage directory
 _tdir=${TMP_DIR:-/var/tmp}
@@ -73,6 +77,14 @@ function are-we-root-abort-if-not {
     fi
 }
 
+function check-num-backups {
+    if [[ $(ls ${_bdir} -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
+      local oldbackup="$(ls ${_bdir} -t | tail -1)"
+      echo "${_bdir}/${oldbackup}"
+      rm "${_bdir}/${oldbackup}"
+    fi
+}
+
 function copyfilesystem {
     echo "Tar files"
     # copy key system files
@@ -110,6 +122,7 @@ function startservices {
 
 description
 are-we-root-abort-if-not
+check-num-backups
 
 # We don't need to stop services, but you can do that if you wish
 #stopservices
