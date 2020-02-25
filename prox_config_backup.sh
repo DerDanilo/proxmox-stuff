@@ -2,7 +2,6 @@
 # Version	      0.2.2 - BETA ! !
 # Date		      02.20.2020
 # Author 	      DerDanilo 
-# Contributors    bootsie123
 
 # set vars
 
