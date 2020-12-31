@@ -12,7 +12,7 @@ set -e
 # permanent backups directory
 # default value can be overridden by setting environment variable before running prox_config_backup.sh
 # example: export BACKUP_DIR="/mnt/pve/media/backup
-_bdir=${BACKUP_DIR:-/mnt/backups/proxmox}
+_bdir=${BACK_DIR:-/mnt/backups/proxmox}
 
 # number of backups to keep before overriding the oldest one
 MAX_BACKUPS=5
@@ -80,8 +80,8 @@ function are-we-root-abort-if-not {
 }
 
 function check-num-backups {
-    if [[ $(ls ${_bdir} -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
-      local oldbackup="$(ls ${_bdir} -t | tail -1)"
+    if [[ $(ls ${_bdir}/*.tar.gz -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
+      local oldbackup="$(ls ${_bdir}/*.tar.gz -t | tail -1)"
       echo "${_bdir}/${oldbackup}"
       rm "${_bdir}/${oldbackup}"
     fi
