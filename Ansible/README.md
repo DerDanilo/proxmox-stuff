@@ -1,6 +1,7 @@
 # Ansible Roles and Playbooks
 
 In this folder I share some Ansible playbooks and roles for other people to use.
+They are written "quick and dirty" since I do not intend to give them Ansible Galaxy quality.
 
 Please be aware that I do not intent to keep those roles up to date or provide support.
 You are free to use them and do whatever you want with it.

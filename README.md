@@ -3,10 +3,19 @@ This is a collection of stuff that I wrote for Proxmox.
 
 [TOC]
 
+---
+
+## Ansible
+
+Small Ansible playbook and role collection for Proxmox related stuff.
+
 ## prox_config_backup
 
-** B E T A ! **
-I just wrote this script quick and dirty. Not tested yet! But it might still be of help.
+I just wrote this script quick and dirty.
+Some people use it on a daily basis (including me).
+
+There might be a PBS backup feature to backup PVE cluster config in the near future provided by the Proxmox team.
+But since this was only mentioned on the roadmap we still have to wait.
 
 ### Backup
 * Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh)  
