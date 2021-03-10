@@ -1,0 +1,30 @@
+---
+# Set to true to use enterprise repos
+# Default is false
+pve_use_enterprise_repos: False
+
+pve_debian_release_name: "buster"
+
+pve_repo_key: "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
+pve_repo_no_subscription: "deb http://download.proxmox.com/debian/pve {{ pve_debian_release_name }} pve-no-subscription"
+pve_repo_enterprise_subscription: "deb https://enterprise.proxmox.com/debian/pve {{ pve_debian_release_name }} pve-enterprise"
+
+pve_apt_packages:
+  - 'bridge-utils'
+  - 'ethtool'
+  - 'htop'
+  - 'iftop'
+  - 'iotop'
+  - 'nload'
+  - 'tmux'
+  - 'parted'
+  - 'iperf'
+  - 'irqbalance'
+  - 'postfix'
+  - 'dnsutils'
+  - 'pigz'
+  - 'proxmox-ve'
+  - 'ssh'
+  - 'open-iscsi'
+  - 'ifupdown2'
+  #- 'ksmtuned'

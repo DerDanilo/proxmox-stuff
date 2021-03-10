@@ -1,0 +1,49 @@
+---
+- name: "Add APT PVE signing key"
+  become: yes
+  apt_key:
+    url: "{{ pve_repo_key }}"
+  when: > 
+    ansible_distribution == 'Debian' and
+    ansible_distribution_release == pve_debian_release_name
+  tags: ["pve"]
+
+- name: "Remove Enterprise PVE repository"
+  become: yes
+  apt_repository:
+    repo: "{{ pve_repo_enterprise_subscription }}"
+    state: absent
+  when: >
+    ansible_distribution == 'Debian' and
+    ansible_distribution_release == pve_debian_release_name and
+    pve_use_enterprise_repos != true
+  tags: ["pve"]
+
+- name: "Remove Enterprise PVE repository"
+  become: yes
+  file:
+    path: "/etc/apt/sources.list.d/pve-enterprise.list"
+    state: absent
+  when: >
+    ansible_distribution == 'Debian' and
+    ansible_distribution_release == pve_debian_release_name and
+    pve_use_enterprise_repos != true
+  tags: ["pve"]
+
+- name: "Add pve repository"
+  become: yes
+  apt_repository:
+    repo: "{{ pve_repo_enterprise_subscription if pve_use_enterprise_repos else pve_repo_no_subscription }}"
+    filename: pve-enterprise
+  when: >
+    ansible_distribution == 'Debian' and
+    ansible_distribution_release == pve_debian_release_name
+  tags: ["pve"]
+
+- name: "Install pve packages"
+  become: yes
+  package:
+    name: "{{ pve_apt_packages }}"
+    update_cache: yes
+    state: latest
+  tags: ["pve"]

@@ -1,0 +1,13 @@
+---
+# Set to true to use enterprise repos
+# Default is false
+pmg_use_enterprise_repos: False
+
+pmg_debian_release_name: "buster"
+
+pmg_repo_key: "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
+pmg_repo_no_subscription: "deb http://download.proxmox.com/debian/pmg {{ pmg_debian_release_name }} pmg-no-subscription"
+pmg_repo_enterprise_subscription: "deb https://enterprise.proxmox.com/debian/pmg {{ pmg_debian_release_name }} pmg-enterprise"
+
+pmg_apt_packages:
+  - 'proxmox-mailgateway'

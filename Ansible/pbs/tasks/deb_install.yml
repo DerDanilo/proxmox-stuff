@@ -1,0 +1,34 @@
+---
+- block:
+    - name: "Filter for latest version"
+      shell: "curl -s {{ pbs_install_client_deb_url_base }} | grep -ohi '\"proxmox-backup-client_.*.deb\"' | grep -ohi '_.*_' | tr -d _ | sort -V | tail -n 1"
+      register: _latest_release
+      tags: ["pbs"]
+
+    - name: "Set proxmox-backup-client version to {{ _latest_release.stdout }}"
+      set_fact:
+        pbs_install_client_deb_version: "{{ _latest_release.stdout }}"
+  when:
+    - pbs_install_client_deb_version|lower == "latest"
+  run_once: true
+  tags: ["pbs"]
+
+- debug:
+    msg: "Downloading PBS client deb package, this may take a while..."
+  tags: ["pbs"]
+
+- name: "Download PBS client deb package"
+  become: yes
+  get_url:
+    url: "{{ pbs_install_client_deb_url }}"
+    dest: "/root/{{ pbs_install_client_deb_file }}"
+  tags: ["pbs"]
+
+- debug:
+    msg: "Installing PBS client via dpkg, this may take a while..."
+  tags: ["pbs"]
+
+- name: "Install PBS client via dpkg"
+  become: yes
+  shell: "dpkg -i /root/{{ pbs_install_client_deb_file }}"
+  tags: ["pbs"]

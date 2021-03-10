@@ -1,0 +1,38 @@
+#!/bin/bash
+{{ ansible_managed | comment }}
+
+{% if (item.pbs_encryption_password is defined and item.pbs_encryption_password|length > 0) %}
+# Using Backup Target specific encryption password
+export PBS_ENCRYPTION_PASSWORD='{{ item.pbs_encryption_password }}'
+{% endif %}
+{% if (item.pbs_encryption_password is not defined) and (pbs_client_backups_pbs_encryption_password is defined and pbs_client_backups_pbs_encryption_password|length >0) %}
+# Using global encryption password
+export PBS_ENCRYPTION_PASSWORD='{{ pbs_client_backups_pbs_encryption_password }}'
+{% endif %}
+
+export PBS_PASSWORD='{{ item.pbs_token | d(pbs_client_backups_pbs_token) }}'
+export PBS_USER_STRING='{{ item.pbs_user_string | d(pbs_client_backups_pbs_user_string) }}'
+export PBS_SERVER='{{ item.pbs_pbs_server | d(pbs_client_backups_pbs_server) }}'
+export PBS_FINGERPRINT='{{ item.pbs_pbs_fingerprint | d(pbs_client_backups_pbs_fingerprint) }}'
+export PBS_DATASTORE='{{ item.pbs_pbs_datastore | d(pbs_client_backups_pbs_datastore) }}'
+
+export PBS_REPOSITORY="${PBS_USER_STRING}@${PBS_SERVER}:${PBS_DATASTORE}"
+
+if [ $# -le 0 ]; then
+    printf "# List backups and exit.\n"
+    printf "***************************\n"
+    proxmox-backup-client list
+    exit 0
+fi
+
+if [[ "$*" == *-backup* ]] || [[ "$*" == *-b* ]]; then
+printf "Create PBS backup with BACKUP-ID:{{ item.name }} of \n{% for source in item.source %}- {{ source.path }} to {{ source.name }}.pxar\n{% endfor %}...\n"
+printf "***************************\n"
+proxmox-backup-client list
+printf "***************************\n"
+proxmox-backup-client backup {% for source in item.source %} {{ source.name }}.pxar:"{{ source.path }}"{% if (source.includedev is defined and source.includedev|length > 0) %}{% for device_path in source.includedev %} --include-dev "{{ device_path }}"{% endfor %}{% endif %}{% endfor %} --backup-id "{{ item.name }}" --skip-lost-and-found{% if (item.pbs_encryption_keyfile is defined and item.pbs_encryption_keyfile|length > 0) %} --keyfile "{{ pbs_client_backups_keyfile_base }}_{{ item.pbs_encryption_keyfile }}"{% endif %}{% if (item.pbs_encryption_keyfile is not defined) and (pbs_client_backups_pbs_encryption_keyfile is defined and pbs_client_backups_pbs_encryption_keyfile|length > 0) %} --keyfile "{{ pbs_client_backups_keyfile_base }}_{{ pbs_client_backups_pbs_encryption_keyfile }}"{% endif %}
+
+proxmox-backup-client list
+printf "***************************\n"
+echo "Done."
+fi

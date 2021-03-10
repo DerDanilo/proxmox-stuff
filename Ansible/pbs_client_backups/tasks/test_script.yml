@@ -1,0 +1,13 @@
+---
+- name: "Test script"
+  become: yes
+  ignore_errors: True # We can ignore errors since we only want to show if the script worked or not.
+  shell: 'bash {{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}_{{ item.name }}.sh'
+  register: __script_test_output
+  tags: ["pbs_client_backups"]
+
+- debug:
+    var: __script_test_output.stdout_lines
+  tags: ["pbs_client_backups"]
+
+

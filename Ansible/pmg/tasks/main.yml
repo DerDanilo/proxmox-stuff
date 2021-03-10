@@ -1,0 +1,53 @@
+---
+- name: "Add APT PMG signing key"
+  become: yes
+  apt_key:
+    url: "{{ pmg_repo_key }}"
+  when: > 
+    ansible_distribution == 'Debian' and
+    ansible_distribution_release == pmg_debian_release_name
+  tags: ["pmg"]
+
+- name: "Remove Enterprise PMG repository"
+  become: yes
+  apt_repository:
+    repo: "{{ pmg_repo_enterprise_subscription }}"
+    state: absent
+  when: >
+    ansible_distribution == 'Debian' and
+    ansible_distribution_release == pmg_debian_release_name and
+    pmg_use_enterprise_repos != true
+  tags: ["pmg"]
+
+- name: "Remove Enterprise PMG repository"
+  become: yes
+  file:
+    path: "/etc/apt/sources.list.d/pmg-enterprise.list"
+    state: absent
+  when: >
+    ansible_distribution == 'Debian' and
+    ansible_distribution_release == pmg_debian_release_name and
+    pmg_use_enterprise_repos != true
+  tags: ["pmg"]
+
+- name: "Add PMG repository"
+  become: yes
+  apt_repository:
+    repo: "{{ pmg_repo_enterprise_subscription if pmg_use_enterprise_repos else pmg_repo_no_subscription }}"
+    filename: pmg-enterprise
+  when: >
+    ansible_distribution == 'Debian' and
+    ansible_distribution_release == pmg_debian_release_name
+  tags: ["pmg"]
+
+- debug:
+    msg: "Installing packages, this may take a while..."
+  tags: ["pmg"]
+
+- name: "Install PMG packages"
+  become: yes
+  package:
+    name: "{{ pmg_apt_packages }}"
+    update_cache: yes
+    state: latest
+  tags: ["pmg"]

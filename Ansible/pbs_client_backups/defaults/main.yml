@@ -1,0 +1,50 @@
+---
+pbs_client_backups_pbs_token: ''
+pbs_client_backups_pbs_encryption_password: ''
+# The keyfile needs to be stored e.g. in 'host_vars/hostname/pbs_client_backup_encryption.key.vault'
+pbs_client_backups_pbs_encryption_keyfile_source_base_path: '{{ inventory_dir }}/host_vars/{{ inventory_hostname }}'
+# Generate vault file as "BLA_encryption.key.vault"
+pbs_client_backups_pbs_encryption_keyfile: '' #'{{ inventory_hostname }}_encryption.key'
+pbs_client_backups_pbs_user_string: 'backup@pbs!{{ inventory_hostname }}'
+pbs_client_backups_pbs_server: 'pbs.mydomain.de'
+pbs_client_backups_pbs_fingerprint: 'FINGERPRINT'
+pbs_client_backups_pbs_datastore: 'DATASTORE_NAME'
+
+pbs_client_backups_default_cron_disabled: 'yes'
+# example once per day at 01:00
+pbs_client_backups_default_cron_minute: '0'
+pbs_client_backups_default_cron_hour: '1'
+pbs_client_backups_default_cron_day: '*'
+pbs_client_backups_default_cron_weekday: '*'
+pbs_client_backups_default_cron_month: '*'
+
+pbs_client_backups_script_owner: "root"
+pbs_client_backups_script_path: "/opt/backup_scripts"
+pbs_client_backups_script_base: "pbs_client_backups"
+pbs_client_backups_keyfile_base: "{{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}"
+
+# Test script (list backup) after setup
+# This command will return no results of backup never run before
+pbs_client_backups_test_script: true
+
+pbs_client_backups:
+  - name: "mybackup" # PBS default for 'backup id' is the hostname
+    source: 
+      - name: "backup"
+        path: "/opt/folder/to/backup"
+        includedev: # Only needs to be specified, when source is local storage which contains mounted devices
+          - "/mnt/mount/to/backup"
+    # encryption: 'pathphrase' # optional, omited by default
+    # cron_disabled: 'no' # optional, defaults to 'yes' (cron disabled)
+    # cron_minute: '05' # Optional, default to pbs_client_backups_default_cron_minute
+    # cron_hour: '*' # Optional, default to pbs_client_backups_default_cron_hour
+    # cron_day: '*' # Optional, default to pbs_client_backups_default_cron_day
+    # cron_weekday: '*' # Optional, default to pbs_client_backups_default_cron_weekday
+    # cron_month: '*' # Optional, default to pbs_client_backups_default_cron_month
+    # pbs_token: 'TOKEN' # optional
+    # pbs_user_string: 'backup@pbs!{{ inventory_hostname }}' # optional
+    # pbs_encryption_password: '' # optional
+    # pbs_encryption_keyfile: '' # optional
+    # pbs_pbs_server: 'pbs.mydomain.de' # optional
+    # pbs_pbs_fingerprint: 'FINGERPRINT' # optional
+    # pbs_pbs_datastore: 'DATASTORE_NAME' # optional

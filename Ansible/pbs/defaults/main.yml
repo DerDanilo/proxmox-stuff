@@ -1,0 +1,32 @@
+---
+# Set to true to use enterprise repos
+# Default is false
+pbs_use_enterprise_repos: False
+
+pbs_debian_release_name: "buster"
+
+pbs_repo_key: "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
+
+# Remove line and uncomment no subscription line once beta is over.
+#pbs_repo_no_subscription: "deb http://download.proxmox.com/debian/pbs buster pbstest"
+pbs_repo_no_subscription: "deb http://download.proxmox.com/debian/pbs {{ pbs_debian_release_name }} pbs-no-subscription"
+pbs_repo_enterprise_subscription: "deb https://enterprise.proxmox.com/debian/pbs {{ pbs_debian_release_name }} pbs-enterprise"
+
+pbs_install_server: true
+pbs_install_client: false
+
+# This is potentially insecure since no package verification is done
+# Handle with care
+pbs_install_client_via_deb_download: false
+
+pbs_install_client_deb_url_base: "http://download.proxmox.com/debian/pbs/dists/buster/pbs-no-subscription/binary-amd64/"
+pbs_install_client_deb_version: "latest" #"1.0.8-1" # Can also be "latest"
+pbs_install_client_deb_file: "proxmox-backup-client_{{ pbs_install_client_deb_version }}_amd64.deb"
+pbs_install_client_deb_url: "{{ pbs_install_client_deb_url_base }}/{{ pbs_install_client_deb_file }}"
+
+pbs_apt_packages_server:
+  - 'proxmox-backup'
+  - 'smartmontools'
+
+pbs_apt_packages_client:
+  - 'proxmox-backup-client'

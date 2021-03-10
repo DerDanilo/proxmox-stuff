@@ -1,0 +1,15 @@
+---
+- name: Install PBS client/server via apt sources...
+  include_tasks: apt_sources_install.yml
+  when: 
+    - pbs_install_client_via_deb_download|bool != true
+    - pbs_install_client|bool or pbs_install_server|bool
+  tags: ["pbs"]
+
+- name: Install PBS client via deb package installation...
+  include_tasks: deb_install.yml
+  when: 
+    - pbs_install_client_via_deb_download|bool
+    - pbs_install_client|bool
+    - pbs_install_server|bool != true
+  tags: ["pbs"]
