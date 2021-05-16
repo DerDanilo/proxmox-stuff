@@ -20,7 +20,7 @@ But since this was only mentioned on the roadmap we still have to wait.
 ### Backup
 * Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh)  
 ```cd /root/; wget -qO- https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh```
-* Set the permanent backups directory ```_bdir="/path/to/backup/directory"```
+* Set the permanent backups directory environment variable ```export BACK_DIR="/path/to/backup/directory"```
 * Make the script executable ```chmod +x ./prox_config_backup.sh```
 * Shut down ALL VMs + LXC Containers if you want to go the save way. (Not required)
 * Run the script ```./prox_config_backup.sh```
