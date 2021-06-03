@@ -38,6 +38,7 @@ _filename2="$_tdir/proxmoxpve.$_now.tar"
 _filename3="$_tdir/proxmoxroot.$_now.tar"
 _filename4="$_tdir/proxmoxcron.$_now.tar"
 _filename5="$_tdir/proxmoxvbios.$_now.tar"
+_filename6="$_tdir/proxmoxpackages.$_now.list"
 _filename_final="$_tdir/proxmox_backup_"$_HOSTNAME"_"$_now".tar.gz"
 
 ##########
@@ -98,12 +99,15 @@ function copyfilesystem {
 	echo backing up custom video bios...
 	tar --warning='no-file-ignored' -cvPf "$_filename5" /usr/share/kvm/*.vbios
     fi
+    # copy installed packages list
+    echo "Copying installed packages list from APT"
+    apt-mark showmanual | tee "$_filename6"
 }
 
 function compressandarchive {
     echo "Compressing files"
     # archive the copied system files
-    tar -cvzPf "$_filename_final" $_tdir/*.tar
+    tar -cvzPf "$_filename_final" $_tdir/*.{tar,list}
 
     # copy config archive to backup folder
     # this may be replaced by scp command to place in remote location
