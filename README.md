@@ -17,6 +17,9 @@ Some people use it on a daily basis (including me).
 There might be a PBS backup feature to backup PVE cluster config in the near future provided by the Proxmox team.
 But since this was only mentioned on the roadmap we still have to wait.
 
+Meanwhile I manage all PVE nodes with Ansible and usually have no need to restore configuration unless all cluster
+nodes failed at once. But having a full cluster config backup is still useful and makes PVE admins sleep well at night (or day).
+
 ### Backup
 * Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh)  
 ```cd /root/; wget -qO- https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh```
@@ -53,7 +56,7 @@ cp -avr /var/tmp/var/tmp/root /root
 for i in qemu-server vz pvedaemon pve-cluster; do systemctl start $i ; done
 ```
 
-If nothing goes wrong, and you have separately restored the VM images using the default ProxMox process.  
+If nothing goes wrong, and you have separately restored the VM images using the default Proxmox process.  
 You should be back where you started. But let's hope it never comes to that.
 
 ### Sources
