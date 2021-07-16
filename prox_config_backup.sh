@@ -39,6 +39,7 @@ _filename3="$_tdir/proxmoxroot.$_now.tar"
 _filename4="$_tdir/proxmoxcron.$_now.tar"
 _filename5="$_tdir/proxmoxvbios.$_now.tar"
 _filename6="$_tdir/proxmoxpackages.$_now.list"
+_filename7="$_tdir/proxmoxreport.$_now.txt"
 _filename_final="$_tdir/proxmox_backup_"$_HOSTNAME"_"$_now".tar.gz"
 
 ##########
@@ -102,12 +103,15 @@ function copyfilesystem {
     # copy installed packages list
     echo "Copying installed packages list from APT"
     apt-mark showmanual | tee "$_filename6"
+    # copy pvereport output
+    echo "Copying pvereport output"
+    pvereport | tee "$_filename7"
 }
 
 function compressandarchive {
     echo "Compressing files"
     # archive the copied system files
-    tar -cvzPf "$_filename_final" $_tdir/*.{tar,list}
+    tar -cvzPf "$_filename_final" $_tdir/*.{tar,list,txt}
 
     # copy config archive to backup folder
     # this may be replaced by scp command to place in remote location
