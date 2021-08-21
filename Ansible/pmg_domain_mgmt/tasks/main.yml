@@ -1,0 +1,89 @@
+---
+- debug:
+    msg: "Installing package dependencies, this may take a while..."
+  tags: ["pmg_domain_mgmt"]
+
+- name: "Install dependencies"
+  become: yes
+  package:
+    name: "{{ pmg_domain_mgmt_apt_packages }}"
+    update_cache: yes
+    state: latest
+  tags: ["pmg_domain_mgmt"]
+
+- name: "Get PMG user"
+  become: yes
+  ignore_errors: True # We can ignore errors since we are working with whatever the output is.
+  shell: "pmgsh get /access/users"
+  register: __pmg_get_output
+  delegate_to: "{{ pmg_domain_mgmt_delegate_host }}"
+  when: 
+    - pmg_domain_mgmt_create_user|bool
+  tags: ["pmg_domain_mgmt"]
+
+- debug:
+    var: __pmg_get_output.stdout_lines
+  when: 
+    - pmg_domain_mgmt_create_user|bool
+    - __pmg_get_output.rc != 0
+  tags: ["pmg_domain_mgmt"]
+
+- name: "Add PMG user"
+  become: yes
+  shell: "pmgsh create /access/users --enable true --role admin --userid {{ pmg_domain_mgmt_prox_username_full }} --crypt_pass $(mkpasswd -m sha-256 {{ pmg_domain_mgmt_password }})"
+  register: __pmg_output
+  delegate_to: "{{ pmg_domain_mgmt_delegate_host }}"
+  when: 
+    - pmg_domain_mgmt_create_user|bool
+    - __pmg_get_output.stdout_lines is not search(pmg_domain_mgmt_prox_username_full)
+  tags: ["pmg_domain_mgmt"]
+
+- name: "Update PMG user"
+  become: yes
+  shell: "pmgsh set /access/users/{{ pmg_domain_mgmt_prox_username_full }} --enable true --role admin --crypt_pass $(mkpasswd -m sha-256 {{ pmg_domain_mgmt_password }})"
+  register: __pmg_output
+  delegate_to: "{{ pmg_domain_mgmt_delegate_host }}"
+  when: 
+    - pmg_domain_mgmt_create_user|bool
+    - __pmg_get_output.stdout_lines is search(pmg_domain_mgmt_prox_username_full)
+  tags: ["pmg_domain_mgmt"]
+
+- debug:
+    var: __pmg_output.stdout_lines
+  when: 
+    - pmg_domain_mgmt_create_user|bool
+    - __pmg_output.rc != 0
+  tags: ["pmg_domain_mgmt"]
+
+- name: "Create script directory"
+  become: yes
+  file:
+    path: "{{ pmg_domain_mgmt_script_path }}"
+    state: directory
+    owner: "{{ pmg_domain_mgmt_script_owner }}"
+    group: "{{ pmg_domain_mgmt_script_owner }}"
+    mode: 0755
+  tags: ["pmg_domain_mgmt"]
+
+- name: "Deploy {{ pmg_domain_mgmt_script }}"
+  become: yes
+  template:
+    src: "{{ pmg_domain_mgmt_script }}.j2"
+    dest: "{{ pmg_domain_mgmt_script_path_full }}"
+    owner: "{{ pmg_domain_mgmt_script_owner }}"
+    group: "{{ pmg_domain_mgmt_script_owner }}"
+    mode: "a+x"
+  tags: ["pmg_domain_mgmt"]
+
+- name: "Test script"
+  become: yes
+  ignore_errors: True # We can ignore errors since we only want to show if the script worked or not.
+  shell: 'bash {{ pmg_domain_mgmt_script_path_full }} -C update -d scripttest.local -c "Script test"'
+  register: __pmg_test_output
+  tags: ["pmg_domain_mgmt"]
+
+- debug:
+    var: __pmg_test_output.stdout_lines
+  tags: ["pmg_domain_mgmt"]
+
+

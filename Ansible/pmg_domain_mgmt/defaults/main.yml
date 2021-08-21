@@ -1,0 +1,22 @@
+---
+pmg_domain_mgmt_script_owner: "root"
+pmg_domain_mgmt_script_path: "/opt"
+pmg_domain_mgmt_script: "pmg_domain_mgmt.sh"
+pmg_domain_mgmt_script_path_full: "{{ pmg_domain_mgmt_script_path }}/{{ pmg_domain_mgmt_script }}"
+
+# Create user on PMG server
+pmg_domain_mgmt_create_user: False
+
+pmg_domain_mgmt_prox_username: "apiuser"
+pmg_domain_mgmt_prox_username_realm: "pmg"
+pmg_domain_mgmt_prox_username_full: "{{ pmg_domain_mgmt_prox_username }}@{{ pmg_domain_mgmt_prox_username_realm }}"
+pmg_domain_mgmt_password: "{{ vault_pmg_domain_mgmt_password }}"
+pmg_domain_mgmt_host: "https://pmg.mydomain.de:8006"
+# get, add, update, delete (not recommended as default command)
+pmg_domain_mgmt_default_command: "get"
+pmg_domain_mgmt_sleep_lenght: 3
+
+pmg_domain_mgmt_delegate_host: "mx1"
+
+pmg_domain_mgmt_apt_packages:
+  - 'curl'
