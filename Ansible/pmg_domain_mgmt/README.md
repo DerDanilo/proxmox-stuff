@@ -12,8 +12,10 @@ Only `curl` and `bash` are required.
 
 ## Default Variables
 
+```yaml
 domain_mgmt_script_path: "/opt/pmg_domain_mgmt.sh"
 domain_mgmt_script_owner: "root"
+```
 
 ## Example
 
