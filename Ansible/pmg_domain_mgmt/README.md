@@ -1,4 +1,4 @@
-# Role: croit
+# Role: pmg_domain_mgmt
 
 Install Proxmox Mail Gateway Domain Mgmt Script
 
@@ -6,17 +6,17 @@ Install Proxmox Mail Gateway Domain Mgmt Script
 
 Supported Operating Systems:
 
-* Any
+* Any (no guarantee!)
 
 Only `curl` and `bash` are required.
 
 ## Default Variables
 
-domain_mgmt_script_path: "/opt/pmg_domain_mgmtdomain_mgmt.sh"
+domain_mgmt_script_path: "/opt/pmg_domain_mgmt.sh"
 domain_mgmt_script_owner: "root"
 
 ## Example
 
 ```bash
-ansible-playbook site.yml -l <INVENTORY_HOSTNAME> --tags pmg_domain_mgmtdomain_mgmt
+ansible-playbook site.yml -l <INVENTORY_HOSTNAME> --tags pmg_domain_mgmt
 ```
