@@ -40,6 +40,7 @@ _filename4="$_tdir/proxmoxcron.$_now.tar"
 _filename5="$_tdir/proxmoxvbios.$_now.tar"
 _filename6="$_tdir/proxmoxpackages.$_now.list"
 _filename7="$_tdir/proxmoxreport.$_now.txt"
+_filename8="$_tdir/proxmoxlocalbin.$_now.tar"
 _filename_final="$_tdir/proxmox_backup_"$_HOSTNAME"_"$_now".tar.gz"
 
 ##########
@@ -96,6 +97,9 @@ function copyfilesystem {
     tar --warning='no-file-ignored' -cvPf "$_filename2" /var/lib/pve-cluster/.
     tar --warning='no-file-ignored' -cvPf "$_filename3" /root/.
     tar --warning='no-file-ignored' -cvPf "$_filename4" /var/spool/cron/.
+    
+    if [ "$(ls -A /usr/local/bin 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename8" /usr/local/bin/.; fi
+        
     if [ "$(ls /usr/share/kvm/*.vbios 2>/dev/null)" != "" ] ; then
 	echo backing up custom video bios...
 	tar --warning='no-file-ignored' -cvPf "$_filename5" /usr/share/kvm/*.vbios
