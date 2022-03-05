@@ -28,6 +28,9 @@ nodes failed at once. But having a full cluster config backup is still useful an
 * Shut down ALL VMs + LXC Containers if you want to go the save way. (Not required)
 * Run the script ```./prox_config_backup.sh```
 
+### Using the script in a cronjob
+* To use the script non-interactively, add the ```-a``` switch.
+
 ### Restore
 On my machine, you end up with a GZipped file of about 1-5 MB with a name like "proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz".  
 Depending upon how you schedule it and the size of your server, that could eventually become a space issue so don't  
