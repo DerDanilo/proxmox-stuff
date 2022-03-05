@@ -1,10 +1,11 @@
 #!/bin/bash
-# Version	      0.2.2 - BETA ! !
-# Date		      02.20.2020
-# Author 	      DerDanilo 
-# Contributors    aboutte, xmirakulix, bootsie123
+# Version	      0.2.3 - BETA ! !
+# Date		      2022-03-05
+# Author 	      DerDanilo
+# Contributors    aboutte, xmirakulix, bootsie123, jniggemann
 
 # set vars
+SILENT=${1}
 
 # always exit on error
 set -e
@@ -141,7 +142,9 @@ function startservices {
 ##########
 
 
-description
+if [ "$SILENT" != "-a" ] ; then
+  description
+fi
 are-we-root-abort-if-not
 check-num-backups
 
