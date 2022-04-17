@@ -71,8 +71,8 @@ _filename_final="$_tdir/proxmox_backup_"$_HOSTNAME"_"$_now".tar.gz"
 ##########
 
 function description {
-    if [[ -t 0 && -t 1 ]]
-    then
+# Check to see if we are in an interactive terminal, if not, skip the description
+    if [[ -t 0 && -t 1 ]]; then
         clear
         cat <<EOF
 
