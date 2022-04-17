@@ -56,8 +56,10 @@ _filename_final="$_tdir/proxmox_backup_"$_HOSTNAME"_"$_now".tar.gz"
 ##########
 
 function description {
-    clear
-    cat <<EOF
+    if [[ -t 0 && -t 1 ]]
+    then
+        clear
+        cat <<EOF
 
         Proxmox Server Config Backup
         Hostname: "$_HOSTNAME"
@@ -80,10 +82,10 @@ function description {
         -----------------------------------------------------------------
 
         Hit return to proceed or CTRL-C to abort.
-
 EOF
-    read dummy
-    clear
+        read dummy
+        clear
+    fi
 }
 
 function are-we-root-abort-if-not {
@@ -149,7 +151,7 @@ function startservices {
 ##########
 
 
-# description
+description
 are-we-root-abort-if-not
 check-num-backups
 
