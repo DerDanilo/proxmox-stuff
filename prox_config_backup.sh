@@ -5,6 +5,7 @@
 # Contributors    aboutte, xmirakulix, bootsie123
 
 # set vars
+export TERM=${TERM:-dumb}
 
 # always exit on error
 set -e
@@ -14,10 +15,14 @@ set -e
 # example: export BACK_DIR="/mnt/pve/media/backup"
 # or
 # example: BACK_DIR="." ./prox_config_backup.sh
-_bdir=${BACK_DIR:-/mnt/backups/proxmox}
+#_bdir=${BACK_DIR:-/mnt/backups/proxmox}
+_bdir=${BACK_DIR:-/mnt/pve/HeliosBackups/pve_config_backups}
 
 # number of backups to keep before overriding the oldest one
 MAX_BACKUPS=5
+
+# Healthchecks UUID
+HEALTHCHECKS=824011d4-4ef5-4e07-ba9c-7879e85f01c1
 
 # temporary storage directory
 _tdir=${TMP_DIR:-/var/tmp}
@@ -25,8 +30,11 @@ _tdir=${TMP_DIR:-/var/tmp}
 _tdir=$(mktemp -d $_tdir/proxmox-XXXXXXXX)
 
 function clean_up {
+    exit_code=$?
     echo "Cleaning up"
     rm -rf $_tdir
+    # Ping Healthchecks.io
+    curl -m 10 --retry 5 https://hc-ping.com/$HEALTHCHECKS/${exit_code}
 }
 
 # register the cleanup function to be called on the EXIT signal
@@ -141,7 +149,7 @@ function startservices {
 ##########
 
 
-description
+# description
 are-we-root-abort-if-not
 check-num-backups
 
