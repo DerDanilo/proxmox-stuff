@@ -1,28 +1,39 @@
 #!/bin/bash
-# Version	      0.2.2 - BETA ! !
-# Date		      02.20.2020
+# Version	      0.2.3 - BETA !!
+# Date		      04.17.2020
 # Author 	      DerDanilo 
-# Contributors    aboutte, xmirakulix, bootsie123
+# Contributors    aboutte, xmirakulix, bootsie123, phidauex
 
-# set vars
-export TERM=${TERM:-dumb}
+###########################
+# Configuration Variables #
+###########################
 
-# always exit on error
-set -e
-
-# permanent backups directory
-# default value can be overridden by setting environment variable before running prox_config_backup.sh
-# example: export BACK_DIR="/mnt/pve/media/backup"
-# or
-# example: BACK_DIR="." ./prox_config_backup.sh
-#_bdir=${BACK_DIR:-/mnt/backups/proxmox}
-_bdir=${BACK_DIR:-/mnt/pve/HeliosBackups/pve_config_backups}
+# Permanent backups directory
+# Default value can be overridden by setting environment variable before running prox_config_backup.sh
+#   example: export BACK_DIR="/mnt/pve/media/backup"
+#   or
+#   example: BACK_DIR="." ./prox_config_backup.sh
+DEFAULT_DIR = "/mnt/pve/media/backup"
 
 # number of backups to keep before overriding the oldest one
 MAX_BACKUPS=5
 
-# Healthchecks UUID
-HEALTHCHECKS=824011d4-4ef5-4e07-ba9c-7879e85f01c1
+# Healthchecks.io notification service
+# Set to 1 to use Healthchecks.io
+HEALTHCHECKS=0
+# Set to the URL of your healthchecks.io check
+HEALTHCHECKS_URL=https://hc-ping.com/your_uuid_here
+
+###########################
+
+# Set terminal to "dumb" if not set (cron compatibility)
+export TERM=${TERM:-dumb}
+
+# Set backup directory to default OR environment variable
+_bdir=${BACK_DIR:-"$DEFAULT_DIR"}
+
+# always exit on error
+set -e
 
 # temporary storage directory
 _tdir=${TMP_DIR:-/var/tmp}
@@ -33,8 +44,12 @@ function clean_up {
     exit_code=$?
     echo "Cleaning up"
     rm -rf $_tdir
-    # Ping Healthchecks.io
-    curl -m 10 --retry 5 https://hc-ping.com/$HEALTHCHECKS/${exit_code}
+
+    # Ping Healthchecks.io if enabled
+    if [ $HEALTHCHECKS -eq 1 ]; then
+        echo "Healthchecks.io notification is enabled"
+        curl -fsS -m 10 --retry 5 -o /dev/null $HEALTHCHECKS_URL/${exit_code}
+    fi
 }
 
 # register the cleanup function to be called on the EXIT signal
@@ -109,9 +124,9 @@ function copyfilesystem {
     tar --warning='no-file-ignored' -cvPf "$_filename2" /var/lib/pve-cluster/.
     tar --warning='no-file-ignored' -cvPf "$_filename3" /root/.
     tar --warning='no-file-ignored' -cvPf "$_filename4" /var/spool/cron/.
-    
+
     if [ "$(ls -A /usr/local/bin 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename8" /usr/local/bin/.; fi
-        
+
     if [ "$(ls /usr/share/kvm/*.vbios 2>/dev/null)" != "" ] ; then
 	echo backing up custom video bios...
 	tar --warning='no-file-ignored' -cvPf "$_filename5" /usr/share/kvm/*.vbios
@@ -149,7 +164,6 @@ function startservices {
 }
 
 ##########
-
 
 description
 are-we-root-abort-if-not
