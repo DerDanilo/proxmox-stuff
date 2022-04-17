@@ -20,7 +20,7 @@ But since this was only mentioned on the roadmap we still have to wait.
 Meanwhile I manage all PVE nodes with Ansible and usually have no need to restore configuration unless all cluster
 nodes failed at once. But having a full cluster config backup is still useful and makes PVE admins sleep well at night (or day).
 
-Thes cript must be run as root, and can be run from cron or an interactive terminal.
+The script must be run as root, and can be run from cron or an interactive terminal.
 
 ### Backup
 * Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh)  
