@@ -65,7 +65,7 @@ You should be back where you started. But let's hope it never comes to that.
 
 The script supports [Healthcheck.io](https://healthcheck.io) notifications, either to the hosted service, or a self-hosted instance. The notification sends during the final cleanup stage, and either returns 0 to tell Healthchecks that the command was successful, or the exit error code (1-255) to tell Healthchecks that the command failed. To enable:
 * Set the `$HEALTHCHECK` variable to 1
-* Set the `$HEALTHCHECK_URL` variable to the full ping URL for your check. Do not include anything after the UUID, the status flag will be added by the script
+* Set the `$HEALTHCHECK_URL` variable to the full ping URL for your check. Do not include anything after the UUID, the status flag will be added by the script.
 
 ### Sources
 http://ziemecki.net/content/proxmox-config-backups
