@@ -1,8 +1,8 @@
 #!/bin/bash
-# Version	      0.2.3 - BETA !!
-# Date		      04.17.2020
+# Version	      0.2.3
+# Date		      02.20.2020
 # Author 	      DerDanilo 
-# Contributors    aboutte, xmirakulix, bootsie123, phidauex
+# Contributors        aboutte, xmirakulix, bootsie123, phidauex
 
 ###########################
 # Configuration Variables #
@@ -13,7 +13,7 @@
 #   example: export BACK_DIR="/mnt/pve/media/backup"
 #   or
 #   example: BACK_DIR="." ./prox_config_backup.sh
-DEFAULT_DIR="/mnt/pve/media/backup"
+DEFAULT_BACK_DIR="/mnt/pve/media/backup"
 
 # number of backups to keep before overriding the oldest one
 MAX_BACKUPS=5
@@ -30,7 +30,7 @@ HEALTHCHECKS_URL=https://hc-ping.com/your_uuid_here
 export TERM=${TERM:-dumb}
 
 # Set backup directory to default OR environment variable
-_bdir=${BACK_DIR:-$DEFAULT_DIR}
+_bdir=${BACK_DIR:-$DEFAULT_BACK_DIR}
 
 # always exit on error
 set -e
