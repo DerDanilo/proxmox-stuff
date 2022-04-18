@@ -1,23 +1,39 @@
 #!/bin/bash
-# Version	      0.2.2 - BETA ! !
-# Date		      02.20.2020
+# Version	      0.2.3
+# Date		      04.18.2022
 # Author 	      DerDanilo 
-# Contributors    aboutte, xmirakulix, bootsie123
+# Contributors        aboutte, xmirakulix, bootsie123, phidauex
 
-# set vars
+###########################
+# Configuration Variables #
+###########################
 
-# always exit on error
-set -e
-
-# permanent backups directory
-# default value can be overridden by setting environment variable before running prox_config_backup.sh
-# example: export BACK_DIR="/mnt/pve/media/backup"
-# or
-# example: BACK_DIR="." ./prox_config_backup.sh
-_bdir=${BACK_DIR:-/mnt/backups/proxmox}
+# Permanent backups directory
+# Default value can be overridden by setting environment variable before running prox_config_backup.sh
+#   example: export BACK_DIR="/mnt/pve/media/backup"
+#   or
+#   example: BACK_DIR="." ./prox_config_backup.sh
+DEFAULT_BACK_DIR="/mnt/pve/media/backup"
 
 # number of backups to keep before overriding the oldest one
 MAX_BACKUPS=5
+
+# Healthchecks.io notification service
+# Set to 1 to use Healthchecks.io
+HEALTHCHECKS=0
+# Set to the URL of your healthchecks.io check
+HEALTHCHECKS_URL=https://hc-ping.com/your_uuid_here
+
+###########################
+
+# Set terminal to "dumb" if not set (cron compatibility)
+export TERM=${TERM:-dumb}
+
+# Set backup directory to default OR environment variable
+_bdir=${BACK_DIR:-$DEFAULT_BACK_DIR}
+
+# always exit on error
+set -e
 
 # temporary storage directory
 _tdir=${TMP_DIR:-/var/tmp}
@@ -25,8 +41,15 @@ _tdir=${TMP_DIR:-/var/tmp}
 _tdir=$(mktemp -d $_tdir/proxmox-XXXXXXXX)
 
 function clean_up {
+    exit_code=$?
     echo "Cleaning up"
     rm -rf $_tdir
+
+    # Ping Healthchecks.io if enabled
+    if [ $HEALTHCHECKS -eq 1 ]; then
+        echo "Healthchecks.io notification is enabled"
+        curl -fsS -m 10 --retry 5 -o /dev/null $HEALTHCHECKS_URL/${exit_code}
+    fi
 }
 
 # register the cleanup function to be called on the EXIT signal
@@ -48,8 +71,10 @@ _filename_final="$_tdir/proxmox_backup_"$_HOSTNAME"_"$_now".tar.gz"
 ##########
 
 function description {
-    clear
-    cat <<EOF
+# Check to see if we are in an interactive terminal, if not, skip the description
+    if [[ -t 0 && -t 1 ]]; then
+        clear
+        cat <<EOF
 
         Proxmox Server Config Backup
         Hostname: "$_HOSTNAME"
@@ -72,10 +97,10 @@ function description {
         -----------------------------------------------------------------
 
         Hit return to proceed or CTRL-C to abort.
-
 EOF
-    read dummy
-    clear
+        read dummy
+        clear
+    fi
 }
 
 function are-we-root-abort-if-not {
@@ -99,9 +124,9 @@ function copyfilesystem {
     tar --warning='no-file-ignored' -cvPf "$_filename2" /var/lib/pve-cluster/.
     tar --warning='no-file-ignored' -cvPf "$_filename3" /root/.
     tar --warning='no-file-ignored' -cvPf "$_filename4" /var/spool/cron/.
-    
+
     if [ "$(ls -A /usr/local/bin 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename8" /usr/local/bin/.; fi
-        
+
     if [ "$(ls /usr/share/kvm/*.vbios 2>/dev/null)" != "" ] ; then
 	echo backing up custom video bios...
 	tar --warning='no-file-ignored' -cvPf "$_filename5" /usr/share/kvm/*.vbios
@@ -139,7 +164,6 @@ function startservices {
 }
 
 ##########
-
 
 description
 are-we-root-abort-if-not

@@ -20,12 +20,14 @@ But since this was only mentioned on the roadmap we still have to wait.
 Meanwhile I manage all PVE nodes with Ansible and usually have no need to restore configuration unless all cluster
 nodes failed at once. But having a full cluster config backup is still useful and makes PVE admins sleep well at night (or day).
 
+The script must be run as root, and can be run from cron or an interactive terminal.
+
 ### Backup
 * Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh)  
 ```cd /root/; wget -qO- https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh```
-* Set the permanent backups directory environment variable ```export BACK_DIR="/path/to/backup/directory"```
+* Set the permanent backups directory environment variable ```export BACK_DIR="/path/to/backup/directory"``` or edit the script to set the `$DEFAULT_BACK_DIR` variable to your preferred backup directory
 * Make the script executable ```chmod +x ./prox_config_backup.sh```
-* Shut down ALL VMs + LXC Containers if you want to go the save way. (Not required)
+* Shut down ALL VMs + LXC Containers if you want to go the safe way. (Not required)
 * Run the script ```./prox_config_backup.sh```
 
 ### Restore
@@ -58,6 +60,12 @@ for i in qemu-server vz pvedaemon pve-cluster; do systemctl start $i ; done
 
 If nothing goes wrong, and you have separately restored the VM images using the default Proxmox process.  
 You should be back where you started. But let's hope it never comes to that.
+
+### Notification
+
+The script supports [Healthcheck.io](https://healthcheck.io) notifications, either to the hosted service, or a self-hosted instance. The notification sends during the final cleanup stage, and either returns 0 to tell Healthchecks that the command was successful, or the exit error code (1-255) to tell Healthchecks that the command failed. To enable:
+* Set the `$HEALTHCHECK` variable to 1
+* Set the `$HEALTHCHECK_URL` variable to the full ping URL for your check. Do not include anything after the UUID, the status flag will be added by the script.
 
 ### Sources
 http://ziemecki.net/content/proxmox-config-backups
