@@ -31,6 +31,8 @@ The script must be run as root, and can be run from cron or an interactive termi
 * Run the script ```./prox_config_backup.sh```
 
 ### Restore
+#### Manually
+
 On my machine, you end up with a GZipped file of about 1-5 MB with a name like "proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz".  
 Depending upon how you schedule it and the size of your server, that could eventually become a space issue so don't  
 forget to set up some kind of archive maintenance.
@@ -60,6 +62,14 @@ for i in qemu-server vz pvedaemon pve-cluster; do systemctl start $i ; done
 
 If nothing goes wrong, and you have separately restored the VM images using the default Proxmox process.  
 You should be back where you started. But let's hope it never comes to that.
+
+
+#### Script
+
+* Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_restore.sh)  
+```cd /root/; wget -qO- https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_restore.sh```
+* Make the script executable ```chmod +x ./prox_config_restore.sh```
+* Run the script ```./prox_config_restore.sh proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz```
 
 ### Notification
 
