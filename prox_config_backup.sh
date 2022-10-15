@@ -29,11 +29,16 @@ HEALTHCHECKS_URL=https://hc-ping.com/your_uuid_here
 # Set terminal to "dumb" if not set (cron compatibility)
 export TERM=${TERM:-dumb}
 
+# always exit on error
+set -e
+
 # Set backup directory to default OR environment variable
 _bdir=${BACK_DIR:-$DEFAULT_BACK_DIR}
 
-# always exit on error
-set -e
+# Check backup directory exists
+if [[ ! -d "${_bdir}" ]] ; then
+    echo "Aborting because backup target does not exists" ; exit 1
+fi
 
 # temporary storage directory
 _tdir=${TMP_DIR:-/var/tmp}
