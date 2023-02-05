@@ -1,7 +1,6 @@
 # Proxmox stuff
-This is a collection of stuff that I wrote for Proxmox.
 
-[TOC]
+This is a collection of stuff that I wrote for Proxmox. Its possble to use the [Ansible roles](#ansible) I wrote or to use the [bash scripts](#bash-scripts) for the backup & restore tasks.
 
 ---
 
@@ -40,6 +39,20 @@ The script supports [healthchecks.io](https://healthchecks.io) notifications, ei
 ❗ **ONLY USE THIS SCRIPT ON THE SAME NODE / PROXMOX VERSION, OTHERWISE IT WILL BREAK YOUR FRESH PROXMOX INSTALLATION. IT WILL ALSO FAIL IF YOU ARE RUNNING A CLUSTER!** ❗
 
 For more info also see #5.
+
+# Bash Scripts
+
+### Cron
+
+To set up a automatic cron job on a monthly (```/etc/cron.weekly``` or ```/etc/cron.daily``` can be used to!) schedule, running the prox_config_backup script, follow these steps:
+
+```wget https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh -O /etc/cron.monthly/prox_config_backup```
+
+Change ```DEFAULT_BACK_DIR="/mnt/pve/truenas_backup/pve"``` and ```MAX_BACKUPS=5``` to the values you want!
+
+Optional: [Execute run-parts](https://superuser.com/questions/402781/what-is-run-parts-in-etc-crontab-and-how-do-i-use-it) to see if it contains errors:
+
+```run-parts -v --test /etc/cron.monthly```
 
 ### Manually
 
