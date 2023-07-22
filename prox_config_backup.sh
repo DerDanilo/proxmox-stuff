@@ -64,14 +64,15 @@ trap clean_up EXIT
 _now=$(date +%Y-%m-%d.%H.%M.%S)
 _HOSTNAME=$(hostname -f)
 _filename1="$_tdir/proxmoxetc.$_now.tar"
-_filename2="$_tdir/proxmoxpve.$_now.tar"
+_filename2="$_tdir/proxmoxvarlibpve.$_now.tar"
 _filename3="$_tdir/proxmoxroot.$_now.tar"
 _filename4="$_tdir/proxmoxcron.$_now.tar"
 _filename5="$_tdir/proxmoxvbios.$_now.tar"
 _filename6="$_tdir/proxmoxpackages.$_now.list"
 _filename7="$_tdir/proxmoxreport.$_now.txt"
 _filename8="$_tdir/proxmoxlocalbin.$_now.tar"
-_filename_final="$_tdir/proxmox_backup_"$_HOSTNAME"_"$_now".tar.gz"
+_filename9="$_tdir/proxmoxetcpve.$_now.tar"
+_filename_final="$_tdir/proxmox_"$_now".tar.gz"
 
 ##########
 
@@ -115,8 +116,8 @@ function are-we-root-abort-if-not {
 }
 
 function check-num-backups {
-    if [[ $(ls ${_bdir}/*${_HOSTNAME}*.tar.gz -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
-      local oldbackup="$(basename $(ls ${_bdir}/*${_HOSTNAME}*.tar.gz -t | tail -1))"
+    if [[ $(ls ${_bdir}/proxmox_*.tar.gz -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
+      local oldbackup="$(basename $(ls ${_bdir}/proxmox_*.tar.gz -t | tail -1))"
       echo "${_bdir}/${oldbackup}"
       rm "${_bdir}/${oldbackup}"
     fi
@@ -126,6 +127,7 @@ function copyfilesystem {
     echo "Tar files"
     # copy key system files
     tar --warning='no-file-ignored' -cvPf "$_filename1" --one-file-system /etc/.
+    tar --warning='no-file-ignored' -cvPf "$_filename9" --one-file-system /etc/pve/.
     tar --warning='no-file-ignored' -cvPf "$_filename2" /var/lib/pve-cluster/.
     tar --warning='no-file-ignored' -cvPf "$_filename3" --one-file-system /root/.
     tar --warning='no-file-ignored' -cvPf "$_filename4" /var/spool/cron/.
