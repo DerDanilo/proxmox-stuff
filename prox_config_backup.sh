@@ -1,8 +1,8 @@
 #!/bin/bash
-# Version	      0.2.3
-# Date		      04.18.2022
+# Version	      0.2.4
+# Date		      08.04.2024
 # Author 	      DerDanilo 
-# Contributors        aboutte, xmirakulix, bootsie123, phidauex
+# Contributors    aboutte, xmirakulix, bootsie123, phidauex
 
 ###########################
 # Configuration Variables #
@@ -117,7 +117,7 @@ function are-we-root-abort-if-not {
 
 function check-num-backups {
     if [[ $(ls ${_bdir}/*${_HOSTNAME}*_*.tar.gz -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
-      local oldbackup="$(basename $(ls ${_bdir}/*${_HOSTNAME}*_*.tar.gz -t | tail -1))"
+      local oldbackup="$(basename $(ls ${_bdir}/*${_HOSTNAME}*.tar.gz -t | tail -1))"
       echo "${_bdir}/${oldbackup}"
       rm "${_bdir}/${oldbackup}"
     fi
