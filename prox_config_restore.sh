@@ -1,18 +1,18 @@
 #!/bin/bash
-# Version	      0.2.3
-# Date		      04.18.2022
+# Version	      0.2.4
+# Date		      08.04.2024
 # Author 	      razem-io 
 # Contributors
 
 # Very basic restore script based on https://github.com/DerDanilo/proxmox-stuff/issues/5
 
 # Restores backup from prox_config_backup.sh
-#   example: prox_config_restore.sh proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz
+#   example: prox_config_restore.sh pve_proxmoxhostname_2023-12-02.15.48.10.tar.gz
 
 set -e
 
 if [[ $# -eq 0 ]] ; then
-    echo 'Argument missing -> restore.sh proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz'
+    echo 'Argument missing -> restore.sh pve_proxmoxhostname_2023-12-02.15.48.10.tar.gz'
     exit 0
 fi
 
