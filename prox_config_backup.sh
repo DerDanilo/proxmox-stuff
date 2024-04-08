@@ -62,7 +62,7 @@ trap clean_up EXIT
 
 # Don't change if not required
 _now=$(date +%Y-%m-%d.%H.%M.%S)
-_HOSTNAME=$(hostname -f)
+_HOSTNAME=$(hostname)
 _filename1="$_tdir/proxmoxetc.$_now.tar"
 _filename2="$_tdir/proxmoxvarlibpve.$_now.tar"
 _filename3="$_tdir/proxmoxroot.$_now.tar"
@@ -72,7 +72,7 @@ _filename6="$_tdir/proxmoxpackages.$_now.list"
 _filename7="$_tdir/proxmoxreport.$_now.txt"
 _filename8="$_tdir/proxmoxlocalbin.$_now.tar"
 _filename9="$_tdir/proxmoxetcpve.$_now.tar"
-_filename_final="$_tdir/proxmox_"$_now".tar.gz"
+_filename_final="$_tdir/pve_"$_HOSTNAME"_"$_now".tar.gz"
 
 ##########
 
@@ -116,8 +116,8 @@ function are-we-root-abort-if-not {
 }
 
 function check-num-backups {
-    if [[ $(ls ${_bdir}/proxmox_*.tar.gz -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
-      local oldbackup="$(basename $(ls ${_bdir}/proxmox_*.tar.gz -t | tail -1))"
+    if [[ $(ls ${_bdir}/*${_HOSTNAME}*_*.tar.gz -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
+      local oldbackup="$(basename $(ls ${_bdir}/*${_HOSTNAME}*_*.tar.gz -t | tail -1))"
       echo "${_bdir}/${oldbackup}"
       rm "${_bdir}/${oldbackup}"
     fi
