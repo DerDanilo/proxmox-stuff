@@ -116,10 +116,10 @@ function are-we-root-abort-if-not {
 }
 
 function check-num-backups {
-    if [[ $(ls ${_bdir}/*${_HOSTNAME}*_*.tar.gz -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
-      local oldbackup="$(basename $(ls ${_bdir}/*${_HOSTNAME}*.tar.gz -t | tail -1))"
-      echo "${_bdir}/${oldbackup}"
-      rm "${_bdir}/${oldbackup}"
+    if [[ $(ls ${_bdir}/*_${_HOSTNAME}_*.tar.gz | wc -l) -ge $MAX_BACKUPS ]]; then
+      local oldbackups="$(ls ${_bdir}/*_${_HOSTNAME}_*.tar.gz -t | tail -n +$MAX_BACKUPS)"
+      echo "${oldbackups}"
+      rm ${oldbackups}
     fi
 }
 
