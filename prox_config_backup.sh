@@ -180,6 +180,11 @@ function startservices {
 
 ##########
 
+# Send a healthcheck.io start
+if [ $HEALTHCHECKS -eq 1 ]; then
+    curl -fsS -m 10 --retry 5 -o /dev/null $HEALTHCHECKS_URL/start
+fi
+
 description
 are-we-root-abort-if-not
 check-num-backups
