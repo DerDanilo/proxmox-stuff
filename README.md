@@ -23,7 +23,7 @@ The script must be run as root, and can be run from cron or an interactive termi
 
 ## Backup
 * Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh)  
-```cd /root/; wget -qO- https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh```
+```cd /root/; wget -q "https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh"```
 * Set the permanent backups directory environment variable ```export BACK_DIR="/path/to/backup/directory"``` or edit the script to set the `$DEFAULT_BACK_DIR` variable to your preferred backup directory
 * Make the script executable ```chmod +x ./prox_config_backup.sh```
 * Shut down ALL VMs + LXC Containers if you want to go the safe way. (Not required)
@@ -67,7 +67,7 @@ I place it back into the /var/tmp directory from where it came.
 # Unpack the original backup
 tar -zxvf proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz
 # unpack the tared contents
-tar -xvf proxmoxpve.2017-12-02.15.48.10.tar
+tar -xvf proxmoxetcpve.2017-12-02.15.48.10.tar
 tar -xvf proxmoxetc.2017-12-02.15.48.10.tar
 tar -xvf proxmoxroot.2017-12-02.15.48.10.tar
 
