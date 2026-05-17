@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+{% for key, value in pve_zfs_conf.items() %}
+options zfs {{ key }}={{ value }}
+{% endfor %}

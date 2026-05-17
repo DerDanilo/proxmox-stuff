@@ -1,14 +1,16 @@
 ---
-pbs_client_backups_pbs_token: ''
 pbs_client_backups_pbs_encryption_password: ''
 # The keyfile needs to be stored e.g. in 'host_vars/hostname/pbs_client_backup_encryption.key.vault'
 pbs_client_backups_pbs_encryption_keyfile_source_base_path: '{{ inventory_dir }}/host_vars/{{ inventory_hostname }}'
 # Generate vault file as "BLA_encryption.key.vault"
 pbs_client_backups_pbs_encryption_keyfile: '' #'{{ inventory_hostname }}_encryption.key'
 pbs_client_backups_pbs_user_string: 'backup@pbs!{{ inventory_hostname }}'
+pbs_client_backups_pbs_password: '' # Can be a password or API token
 pbs_client_backups_pbs_server: 'pbs.mydomain.de'
+pbs_client_backups_pbs_server_port: '8007'
 pbs_client_backups_pbs_fingerprint: 'FINGERPRINT'
 pbs_client_backups_pbs_datastore: 'DATASTORE_NAME'
+pbs_client_Backups_pbs_namespace: 'NAMESPACE_NAME' 
 
 pbs_client_backups_default_cron_disabled: 'yes'
 # example once per day at 01:00
@@ -41,10 +43,12 @@ pbs_client_backups:
     # cron_day: '*' # Optional, default to pbs_client_backups_default_cron_day
     # cron_weekday: '*' # Optional, default to pbs_client_backups_default_cron_weekday
     # cron_month: '*' # Optional, default to pbs_client_backups_default_cron_month
-    # pbs_token: 'TOKEN' # optional
+    # pbs_password: 'Password/API token' # optional
     # pbs_user_string: 'backup@pbs!{{ inventory_hostname }}' # optional
     # pbs_encryption_password: '' # optional
     # pbs_encryption_keyfile: '' # optional
     # pbs_pbs_server: 'pbs.mydomain.de' # optional
+    # pbs_pbs_server_port: '8007' # optional
     # pbs_pbs_fingerprint: 'FINGERPRINT' # optional
     # pbs_pbs_datastore: 'DATASTORE_NAME' # optional
+    # pbs_pbs_namespace: 'NAMESPACE_NAME' # optional

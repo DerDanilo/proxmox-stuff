@@ -1,30 +1,111 @@
 ---
-# Set to true to use enterprise repos
-# Default is false
-pve_use_enterprise_repos: False
+# Cleanup old repo references that might exist
+pve_repo_cleanup: True
 
-pve_debian_release_name: "buster"
+# Configure repos
+# Set to 'false' to skip repo related tasks
+# This is useful if repos were configured manually
+pve_configure_repos: True
 
-pve_repo_key: "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
-pve_repo_no_subscription: "deb http://download.proxmox.com/debian/pve {{ pve_debian_release_name }} pve-no-subscription"
-pve_repo_enterprise_subscription: "deb https://enterprise.proxmox.com/debian/pve {{ pve_debian_release_name }} pve-enterprise"
+# Set to false to only deploy packages sources
+# Setting this to 'false' prevents unintended
+# updates/software changes on running nodes.
+pve_install_packages: True
 
-pve_apt_packages:
-  - 'bridge-utils'
-  - 'ethtool'
-  - 'htop'
-  - 'iftop'
-  - 'iotop'
-  - 'nload'
-  - 'tmux'
-  - 'parted'
-  - 'iperf'
-  - 'irqbalance'
-  - 'postfix'
-  - 'dnsutils'
-  - 'pigz'
-  - 'proxmox-ve'
-  - 'ssh'
-  - 'open-iscsi'
-  - 'ifupdown2'
+# Set to true to install ceph
+# Default is true
+pve_install_pve_ceph_repo: True
+
+# Set to true to use proxmox ceph repo
+# Default is true
+pve_use_pve_ceph_repo: True
+
+# Select the system release name for the pve packages
+# Automatic detection not always useful here. --> When Upgrading e.g.
+pve_debian_release_name: "trixie"
+pve_debian_distribution_major_version: "13"
+
+# select package source
+# "nosubscription" = install from upstream package source
+# "enterprise" = install from upstream package source
+# "custom" = install from custom package source
+pve_package_source: "nosubscription"
+
+# Target keyring file
+pve_repo_keyring_file: "/etc/apt/trusted.gpg.d/proxmox-release-{{ pve_debian_release_name | lower }}.gpg"
+
+# no subscription
+pve_nosubscription_source_key: 'https://enterprise.proxmox.com/debian/proxmox-archive-keyring-{{ pve_debian_release_name | lower }}.gpg'
+pve_nosubscription_source_repo: 'http://download.proxmox.com/debian/pve {{ pve_debian_release_name | lower }} pve-no-subscription'
+
+# enterprise
+pve_enterprise_source_key: 'https://enterprise.proxmox.com/debian/proxmox-archive-keyring-{{ pve_debian_release_name | lower }}.gpg'
+pve_enterprise_source_repo: 'https://enterprise.proxmox.com/debian/pve {{ pve_debian_release_name | lower }} pve-enterprise'
+
+# custom - no subscription
+# Set pve_custom_source_key and pve_custom_source_repo to your own mirror URL.
+pve_custom_source_key: 'http://mirror.example.com/proxmox/proxmox-archive-keyring-{{ pve_debian_release_name | lower }}.gpg'
+pve_custom_source_repo: 'http://mirror.example.com/proxmox/pve {{ pve_debian_release_name | lower }} pve-no-subscription'
+
+# select package source
+# "nosubscription" = install from upstream package source
+# "enterprise" = install from upstream package source
+# "custom" = install from custom package source
+pve_ceph_package_source: "nosubscription"
+
+# Select ceph version by codename
+pve_ceph_version: "squid"
+
+# no subscription
+pve_ceph_nosubscription_source_repo: 'http://download.proxmox.com/debian/ceph-{{ pve_ceph_version }} {{ pve_debian_release_name | lower }} no-subscription'
+
+# enterprise
+pve_ceph_enterprise_source_repo: 'https://enterprise.proxmox.com/debian/ceph-{{ pve_ceph_version }} {{ pve_debian_release_name | lower }} enterprise'
+
+# custom - no subscription
+# Set pve_ceph_custom_source_repo to your own mirror URL.
+pve_ceph_custom_source_repo: 'http://mirror.example.com/proxmox/ceph-{{ pve_ceph_version }} {{ pve_debian_release_name | lower }} no-subscription'
+
+pve_packages:
+  - "bridge-utils"
+  - "ethtool"
+  - "htop"
+  - "iftop"
+  - "iotop"
+  - "nload"
+  - "tmux"
+  - "parted"
+  - "iperf"
+  - "irqbalance"
+  - "postfix"
+  - "dnsutils"
+  - "pigz"
+  - "proxmox-ve"
+  - "ssh"
+  - "open-iscsi"
   #- 'ksmtuned'
+  # Can only be used with running PVE kernel
+  #- 'zfsutils-linux'
+  #- 'ifupdown2'
+
+pve_configure_sysctl: True
+pve_sysctl:
+  "vm.swappiness": "0"
+  "vm.vfs_cache_pressure": "100"
+  "dev.raid.speed_limit_min": "800000"
+  "dev.raid.speed_limit_max": "1600000"
+  "net.ipv4.ip_forward": "1"
+  "net.ipv6.conf.all.forwarding": "1"
+  "net.ipv4.conf.all.proxy_arp": "1"
+
+# Include the following block to disable ipv6
+  # "net.ipv6.conf.all.disable_ipv6": "1"
+  # "net.ipv6.conf.default.disable_ipv6": "1"
+  # "net.ipv6.conf.lo.disable_ipv6": "1"
+
+pve_configure_zfs: True
+# zfs arc max setting
+# This example uses max 32GB
+pve_zfs_conf:
+  "zfs_arc_min": "1073741824" # 1 GB
+  "zfs_arc_max": "34359738368" # 32 GB

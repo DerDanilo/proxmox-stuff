@@ -1,100 +1,246 @@
-# Proxmox stuff
+# proxmox-stuff
 
-This is a collection of stuff that I wrote for Proxmox. Its possble to use the [Ansible roles](#ansible) I wrote or to use the [bash scripts](#bash-scripts) for the backup & restore tasks.
+A collection of scripts and Ansible roles for Proxmox administration (PVE/PMG/PBS).
+
+> [!NOTE]
+> This repository is shared as a **personal reference**, not as a fully maintained open-source project.
+> The code reflects real configurations that were used in production environments at some point, but there
+> are no guarantees regarding update frequency, compatibility, or long-term support. Please treat everything
+> here as a foundation to build upon and adapt to your own environment. Pull requests are welcome, although
+> responses or reviews may sometimes take a while.
+>
+> Over time, my motivation to maintain large amounts of reusable boilerplate infrastructure code has simply
+> become smaller. AI-assisted development has changed a lot about how infrastructure and automation projects
+> are approached today — in many cases, a good prompt and a clear understanding of your own environment are
+> more valuable than digging through someone else's partially maintained repository.
+>
+> Beyond that, time is limited. Family and personal life naturally take priority, and I prefer spending the
+> remaining hobby time actually building and experimenting with things instead of continuously polishing and
+> maintaining GitHub repositories.
+
+> [!WARNING]
+> **No warranty, no liability — for anything in this repository.**
+>
+> Everything here is provided as-is, without any warranty of any kind, express or implied.
+> Use it at your own risk. The authors and contributors are not responsible for any data loss,
+> downtime, broken systems, or damage of any kind resulting from the use of this code.
 
 ---
 
-# Ansible
+## Ansible
 
-Small Ansible playbook and role collection for Proxmox related stuff.
+Small role collection for Proxmox-related automation.
 
-# prox_config_backup
+| Role | Description |
+| --- | --- |
+| `pbs` | Proxmox Backup Server setup |
+| `pbs_client_backups` | Configure PBS client backups on PVE nodes |
+| `pve` | Proxmox VE base setup |
+| `pmg` | Proxmox Mail Gateway setup |
+| `pmg_domain_mgmt` | PMG domain management |
 
-I just wrote this script quick and dirty.
-Some people use it on a daily basis (including me).
+See [Ansible/](Ansible/) for individual role READMEs.
 
-There might be a PBS backup feature to backup PVE cluster config in the near future provided by the Proxmox team.
-But since this was only mentioned on the roadmap we still have to wait.
+---
 
-Meanwhile I manage all PVE nodes with Ansible and usually have no need to restore configuration unless all cluster
-nodes failed at once. But having a full cluster config backup is still useful and makes PVE admins sleep well at night (or day).
+## PVE Config Backup & Restore
 
-The script must be run as root, and can be run from cron or an interactive terminal.
+Scripts to back up and restore the **node configuration** of a standalone Proxmox VE host.
 
-## Backup
-* Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh)  
-```cd /root/; wget -q "https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh"```
-* Set the permanent backups directory environment variable ```export BACK_DIR="/path/to/backup/directory"``` or edit the script to set the `$DEFAULT_BACK_DIR` variable to your preferred backup directory
-* Make the script executable ```chmod +x ./prox_config_backup.sh```
-* Shut down ALL VMs + LXC Containers if you want to go the safe way. (Not required)
-* Run the script ```./prox_config_backup.sh```
+> [!CAUTION]
+> **Read before you run anything.**
+>
+> - These scripts back up **node configuration only** — not VM/LXC disk images or container data.
+> - **Always restore on the same node and the exact same Proxmox VE version** you backed up from.
+>   Restoring onto a different PVE version or a freshly installed system of a different version **might break your installation**.
+> - **Clusters are not supported.** Running the restore script on a cluster node will corrupt the cluster state.
+>   If you are running a cluster, do not use these scripts.
+> - The restore script stops core PVE services and overwrites system files. **There is no undo.**
+>   Make sure you have console access before running it.
 
-### Notification
+### Quick Start (Installer)
 
-The script supports [healthchecks.io](https://healthchecks.io) notifications, either to the hosted service, or a self-hosted instance. The notification sends during the final cleanup stage, and either returns 0 to tell Healthchecks that the command was successful, or the exit error code (1-255) to tell Healthchecks that the command failed. To enable:
-* Set the `$HEALTHCHECK` variable to 1
-* Set the `$HEALTHCHECK_URL` variable to the full ping URL for your check. Do not include anything after the UUID, the status flag will be added by the script.
+The installer clones the repository, asks a few questions, and sets up the cron job for you.
 
-## Restore
-❗ **ONLY USE THIS SCRIPT ON THE SAME NODE / PROXMOX VERSION, OTHERWISE IT WILL BREAK YOUR FRESH PROXMOX INSTALLATION. IT WILL ALSO FAIL IF YOU ARE RUNNING A CLUSTER!** ❗
-
-For more info also see #5.
-
-# Bash Scripts
-
-### Cron
-
-To set up a automatic cron job on a monthly (```/etc/cron.weekly``` or ```/etc/cron.daily``` can be used to!) schedule, running the prox_config_backup script, follow these steps:
-
-```wget https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_backup.sh -O /etc/cron.monthly/prox_config_backup```
-
-Change ```DEFAULT_BACK_DIR="/mnt/pve/truenas_backup/pve"``` and ```MAX_BACKUPS=5``` to the values you want!
-
-Optional: [Execute run-parts](https://superuser.com/questions/402781/what-is-run-parts-in-etc-crontab-and-how-do-i-use-it) to see if it contains errors:
-
-```run-parts -v --test /etc/cron.monthly```
-
-### Manually
-
-On my machine, you end up with a GZipped file of about 1-5 MB with a name like "proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz".  
-Depending upon how you schedule it and the size of your server, that could eventually become a space issue so don't  
-forget to set up some kind of archive maintenance.
-
-To restore, move the file back to proxmox with cp, scp, webmin, a thumb drive, whatever.  
-I place it back into the /var/tmp directory from where it came. 
-
-```
-# Unpack the original backup
-tar -zxvf proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz
-# unpack the tared contents
-tar -xvf proxmoxetcpve.2017-12-02.15.48.10.tar
-tar -xvf proxmoxetc.2017-12-02.15.48.10.tar
-tar -xvf proxmoxroot.2017-12-02.15.48.10.tar
-
-# If the services are running, stop them:
-for i in pve-cluster pvedaemon vz qemu-server; do systemctl stop $i ; done
-
-# Copy the old content to the original directory:
-cp -avr /var/tmp/var/tmp/etc /etc
-cp -avr /var/tmp/var/tmp/var /var
-cp -avr /var/tmp/var/tmp/root /root
-
-# And, finally, restart services:
-for i in qemu-server vz pvedaemon pve-cluster; do systemctl start $i ; done
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/pve_backup_and_restore/install.sh)
 ```
 
-If nothing goes wrong, and you have separately restored the VM images using the default Proxmox process.  
-You should be back where you started. But let's hope it never comes to that.
+Or if you already have the repo:
 
+```bash
+bash /root/proxmox-stuff/pve_backup_and_restore/install.sh
+```
 
-### Script
+The installer will:
 
-* Download the [script](https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_restore.sh)  
-```cd /root/; wget -qO- https://raw.githubusercontent.com/DerDanilo/proxmox-stuff/master/prox_config_restore.sh```
-* Make the script executable ```chmod +x ./prox_config_restore.sh```
-* Run the script ```./prox_config_restore.sh proxmox_backup_proxmoxhostname_2017-12-02.15.48.10.tar.gz```
+1. Clone or update the repository to `/root/proxmox-stuff`
+2. Ask for the backup target directory
+3. Ask how many backups to retain
+4. Optionally create a monthly cron job at `/etc/cron.monthly/proxmox-config-backup`
 
+### Manual Setup
 
+```bash
+# Clone the repository
+git clone https://github.com/DerDanilo/proxmox-stuff /root/proxmox-stuff
 
-## Sources
-http://ziemecki.net/content/proxmox-config-backups
+# Make scripts executable
+chmod +x /root/proxmox-stuff/pve_backup_and_restore/prox_config_backup.sh
+chmod +x /root/proxmox-stuff/pve_backup_and_restore/prox_config_restore.sh
+
+# Run the backup (adjust BACK_DIR to your storage)
+BACK_DIR="/mnt/pve/media/backup" /root/proxmox-stuff/pve_backup_and_restore/prox_config_backup.sh
+```
+
+### What Gets Backed Up
+
+| Path | Description |
+| --- | --- |
+| `/etc/` | System configuration |
+| `/etc/pve/` | Proxmox VE configuration (explicit, separate archive) |
+| `/var/lib/pve-cluster/` | Cluster/node database |
+| `/var/lib/vz/snippets/` | Hook scripts, cloud-init snippets (if non-empty) |
+| `/var/spool/cron/` | Cron jobs |
+| `/root/` | Root home directory |
+| `/usr/local/bin/` | Local scripts/binaries (if non-empty) |
+| `/usr/share/kvm/*.vbios` | Custom GPU vBIOS files (if present) |
+| `/opt/` | Optional — set `BACKUP_OPT_FOLDER=true` |
+| APT package list | Output of `apt-mark showmanual` |
+| `pvereport` | Full `pvereport` output as text file |
+
+The resulting archive is a compressed `.tar.gz`, typically 1–5 MB.
+
+### Configuration
+
+Configuration variables are at the top of `pve_backup_and_restore/prox_config_backup.sh`.
+They can also be overridden via environment variables at runtime.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `BACK_DIR` / `DEFAULT_BACK_DIR` | `/mnt/pve/media/backup` | Target directory for backup archives |
+| `MAX_BACKUPS` | `5` | Number of backups to keep per host |
+| `BACKUP_OPT_FOLDER` | `false` | Include `/opt/` in backup |
+| `HEALTHCHECKS` | `0` | Enable healthchecks.io ping (`1` = on) |
+| `HEALTHCHECKS_URL` | — | Your healthchecks.io check URL |
+| `TMP_DIR` | `/var/tmp` | Directory for temporary files during backup |
+
+> [!NOTE]
+> If you want to back up PVE cluster/node configuration to a Proxmox Backup Server, the
+> [Ansible role `pbs_client_backups`](Ansible/pbs_client_backups/README.md) is the better fit.
+> It has been used in production across many clusters for years, primarily backing up `/etc/pve`
+> (the PVE cluster config). The role is extensible to individual node configs as well, though
+> in practice a solid IaC setup often makes per-node config backups redundant — your Ansible
+> inventory *is* the documentation. That said, nothing replaces clear, well-maintained docs.
+> The role is shared on a best-effort basis and may not receive regular updates.
+
+**Examples:**
+
+```bash
+# Override backup directory for this run only
+BACK_DIR="/mnt/nas/proxmox-backups" ./prox_config_backup.sh
+
+# Set permanently via environment
+export BACK_DIR="/mnt/nas/proxmox-backups"
+./prox_config_backup.sh
+```
+
+### Cron Setup
+
+Create `/etc/cron.monthly/proxmox-config-backup`:
+
+```bash
+#!/bin/bash
+BACK_DIR="/mnt/pve/media/backup" MAX_BACKUPS=5 /root/proxmox-stuff/pve_backup_and_restore/prox_config_backup.sh
+```
+
+Make it executable:
+
+```bash
+chmod +x /etc/cron.monthly/proxmox-config-backup
+```
+
+Test without actually waiting for the next month:
+
+```bash
+run-parts -v --test /etc/cron.monthly
+run-parts -v /etc/cron.monthly
+```
+
+### Restore
+
+> [!CAUTION]
+> **Only restore on the same node and the same Proxmox VE version.**
+> Restoring onto a different version will likely break your installation.
+> Have console (IPMI/iDRAC/iKVM) access ready before you start.
+
+```bash
+/root/proxmox-stuff/pve_backup_and_restore/prox_config_restore.sh pve_myhostname_2026-05-17.12.00.00.tar.gz
+```
+
+The script stops PVE services, restores all files, and prompts for a reboot.
+
+**Restore modes:**
+
+| Mode | Description |
+| --- | --- |
+| 1 — Default | Full restore, `/etc/fstab` is overwritten as-is |
+| 2 — fstab safe | `/etc/fstab` from the backup is commented out and saved as `/etc/fstab_RESTORED`. Use this when restoring onto a different disk layout. |
+
+After a mode-2 restore, review `/etc/fstab_RESTORED` and update `/etc/fstab` manually before rebooting.
+
+### Known Issues & Gotchas
+
+These are real problems that have come up in the past — either fixed by patches or still worth being aware of.
+
+#### Hostname collision in cleanup
+
+**Problem:** If you have two nodes named `pve` and `pve2`, the backup rotation on `pve2` could accidentally delete backups from `pve` because the hostname pattern was not anchored.
+
+**Status:** Fixed. The cleanup uses a pattern `*_${HOSTNAME}_*.tar.gz` which includes underscores as delimiters. If you renamed a node, old backups with the old hostname will not be rotated automatically — delete them manually.
+
+#### MAX_BACKUPS not reducing existing backups
+
+**Problem:** Lowering `MAX_BACKUPS` from e.g. 10 to 3 would not immediately prune existing backups down to 3 — only one extra backup would be deleted per run.
+
+**Status:** Fixed. The cleanup now removes all backups beyond the limit in a single pass.
+
+#### Backup archive explodes in size (`/tmp` fills up)
+
+**Problem:** If a mount point lives inside a backed-up directory, `tar` would descend into it and include all data, causing `/tmp` to fill up and the backup to fail or become huge.
+
+**Status:** Fixed via `--one-file-system` flag on all tar operations. Mounts are not followed.
+
+#### Unsafe cleanup of backup directory
+
+**Problem:** An older version of the cleanup function would delete *any* file in the backup directory when rotating, not just `.tar.gz` files matching the expected pattern.
+
+**Status:** Fixed. Cleanup only touches files matching `*_${HOSTNAME}_*.tar.gz`.
+
+#### Restoring `/etc/fstab` on a different disk layout
+
+**Problem:** Restoring `/etc/fstab` from a backup onto a newly installed system with different disk UUIDs or device names will prevent the system from booting.
+
+**Status:** Addressed by restore mode 2 (fstab safe). Use mode 2 whenever you are unsure whether your disk layout matches the backup.
+
+#### Restore fails after PVE version upgrade
+
+**Problem:** Restoring a backup from PVE 7 onto PVE 8 (or any cross-version restore) will overwrite `/etc/apt/sources.list`, `/etc/network/interfaces`, and other files with old content. This can break the system in subtle and non-obvious ways.
+
+**Status:** Not fixable by the scripts. **Never restore across PVE versions.** If you need to migrate to a new PVE version, do a clean install and reconfigure manually, or restore and then re-run the PVE upgrade procedure.
+
+#### Cluster nodes
+
+**Problem:** On a cluster node, `/var/lib/pve-cluster/` contains the cluster database. Restoring it on one node while the others are running will corrupt the cluster.
+
+**Status:** Not supported. These scripts are designed for standalone (non-clustered) nodes only.
+
+#### Script fails silently in cron (exit on error)
+
+**Problem:** `set -e` causes the script to exit on any error. In cron, without a mail setup, failures are silent.
+
+**Mitigation:** Use [healthchecks.io](https://healthchecks.io) integration (`HEALTHCHECKS=1`) to get notified when the backup does not complete successfully. Alternatively, redirect cron output to a log file:
+
+```bash
+BACK_DIR="/mnt/pve/media/backup" /root/proxmox-stuff/pve_backup_and_restore/prox_config_backup.sh >> /var/log/proxmox-backup.log 2>&1
+```

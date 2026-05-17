@@ -1,15 +1,143 @@
 ---
-- name: Install PBS client/server via apt sources...
-  include_tasks: apt_sources_install.yml
+- name: Fail when invalid install type was defined
+  fail:
+    msg: "Error! - Please specify a valid pbs_install_type; server|client !"
+  when: pbs_install_type|lower is not search('(server|client)')
+  tags: ["pbs"]
+
+- name: Fail when install type 'server' and 'pbs_install_client_via_deb_download=true'
+  fail:
+    msg: "Error! - Only client package can be installed using .deb download method !"
   when: 
-    - pbs_install_client_via_deb_download|bool != true
-    - pbs_install_client|bool or pbs_install_server|bool
+    - pbs_install_type|lower is search('(server)')
+    - pbs_install_client_via_deb_download|bool
   tags: ["pbs"]
 
 - name: Install PBS client via deb package installation...
   include_tasks: deb_install.yml
-  when: 
+  when:
     - pbs_install_client_via_deb_download|bool
-    - pbs_install_client|bool
-    - pbs_install_server|bool != true
+    - pbs_install_type|lower is search('(client)')
+  tags: ["pbs"]
+
+- name: Install PBS client/server via apt sources...
+  include_tasks: setup.yml
+  when:
+    - not pbs_install_client_via_deb_download|bool
+    - pbs_install_type|lower is search('(server|client)')
+  tags: ["pbs","pbs_remove_nag"]
+
+- name: "Deploy Proxmox NAG patch for no-subscription packages"
+  become: yes
+  block:
+    - name: "Deploy /usr/share/pbs_nag_script.sh"
+      template:
+        src: "pbs_nag_script.sh.j2"
+        dest: "/usr/share/pbs_nag_script.sh"
+        mode: a+x
+
+    - name: "Run /usr/share/pbs_nag_script.sh"
+      command: 'bash /usr/share/pbs_nag_script.sh'
+
+    - name: "Deploy apt hook /etc/apt/apt.conf.d/86pbs-nags"
+      template:
+        src: "86pbs-nags.j2"
+        dest: "/etc/apt/apt.conf.d/86pbs-nags"
+        mode: a+x
+  when:
+    - not pbs_install_client_via_deb_download|bool
+    - pbs_install_type|lower is search('(server)')
+    - pbs_package_source|lower is search('(nosubscription|custom)')
+  tags: ["pbs","pbs_remove_nag"]
+
+- name: "Remove /etc/apt/apt.conf.d/86pbs-nags"
+  become: true
+  file:
+    path: "/etc/apt/apt.conf.d/86pbs-nags"
+    state: absent
+  when:
+    - not pbs_install_client_via_deb_download|bool
+    - pbs_install_type|lower is search('(server)')
+    - pbs_package_source|lower is search('(enterprise)')
+  tags: ["pbs","pbs_remove_nag"]
+
+- name: Gather facts again with setup module to get latest information
+  setup:
+  when: 
+    - pbs_install_type|lower is search('(server)')
+    - pbs_install_packages|bool
+  tags: ["pbs"]
+
+- name: Check if pbs kernel is active
+  fail:
+    msg: >
+      Wrong kernel active
+      [ {{ ansible_kernel }} does not contain "pve" ]
+      A system reboot might be required to activate the pve kernel.
+  when:
+    - pbs_install_type|lower is search('(server)')
+    - pbs_install_packages|bool
+    - '"pve" not in ansible_kernel'
+  tags: ["pbs"]
+
+- name: Check if pbs kernel is active
+  debug:
+    msg: >
+      pbs kernel active
+      [ {{ ansible_kernel }} contains "pve" ]
+      Installing 'ifupdown2'
+  when:
+    - pbs_install_type|lower is search('(server)')
+    - pbs_install_packages|bool
+    - '"pve" in ansible_kernel'
+  tags: ["pbs"]
+
+- name: "Install ifupdown2 packages"
+  become: true
+  package:
+    name:
+      - "zfsutils-linux"
+      - "ifupdown2"
+    update_cache: yes
+    state: latest
+  when:
+    - pbs_install_type|lower is search('(server)')
+    - pbs_install_packages|bool
+    - '"pve" in ansible_kernel'
+  tags: ["pbs"]
+
+- name: "Configure pbs sysctl config"
+  become: true
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: "present"
+    reload: True
+  with_dict: "{{ pbs_sysctl }}"
+  when:
+    - pbs_configure_sysctl|bool
+  tags: ["pbs"]
+
+- name: "Configue ZFS options"
+  become: true
+  block:
+    - name: "Create directory '/etc/modprobe.d/'"
+      become: true
+      file:
+        path: "/etc/modprobe.d/"
+        state: directory
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: Write zfs options
+      become: true
+      template:
+        src: "{{ role_path }}/templates/etc/modprobe.d/zfs.conf.j2"
+        dest: "/etc/modprobe.d/zfs.conf"
+        owner: root
+        group: root
+        mode: 0644
+  when:
+    - pbs_configure_zfs|bool
   tags: ["pbs"]

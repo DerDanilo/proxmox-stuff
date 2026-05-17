@@ -1,0 +1,166 @@
+- name: "Validate | Fail when invalid package source was defined"
+  fail:
+    msg: "Error! - Please specify a valid pbs_package_source; nosubscription|enterprise|custom !"
+  when: pbs_package_source|lower is not search('(nosubscription|enterprise|custom)')
+  tags: ["pbs"]
+
+- name: "Validate | Fail when invalid debian release was defined"
+  fail:
+    msg: "Error! - Please specify a valid pbs_debian_release_name; System is running: {{ ansible_distribution_release }} !"
+  when: ansible_distribution_release != pbs_debian_release_name
+  tags: ["pbs"]
+
+- name: "Repo | Remove legacy apt source entries for PBS"
+  file:
+    path: "/etc/apt/sources.list.d/{{ item }}"
+    state: absent
+  loop:
+    - "pbs-enterprise.list"
+    - "pbs-install-repo.list"
+    - "pbs-no-subscription.list"
+    - "pbs.list"
+    - "pbs-enterprise.sources"
+    - "pbs-install-repo.sources"
+    - "pbs-no-subscription.sources"
+    - "pbs.sources"
+  when: 
+    - pbs_repo_cleanup|bool
+    - pbs_configure_repos|bool
+  tags: ["pbs"]
+
+- name: "Repo | Configure PBS no-subscription repository (deb822)"
+  become: yes
+  block:
+    - name: "Repo | Ensure PBS keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pbs_repo_keyring_file | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: "Repo | Download PBS no-subscription signing key"
+      ansible.builtin.get_url:
+        url: "{{ pbs_nosubscription_source_key }}"
+        dest: "{{ pbs_repo_keyring_file }}"
+        mode: "0644"
+
+    - name: "Repo | Write PBS no-subscription deb822 source file"
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/pbs.sources
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: {{ pbs_nosubscription_source_repo.split()[1] }}
+          Suites: {{ pbs_nosubscription_source_repo.split()[2] }}
+          Components: {{ pbs_nosubscription_source_repo.split()[3:] | join(' ') }}
+          Architectures: amd64
+          Signed-By: {{ pbs_repo_keyring_file }}
+  when: 
+    - pbs_configure_repos|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pbs_debian_release_name
+    - pbs_package_source|lower == 'nosubscription'
+  tags: ["pbs"]
+
+- name: "Repo | Configure PBS enterprise repository (deb822)"
+  become: yes
+  block:
+    - name: "Repo | Ensure PBS keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pbs_repo_keyring_file | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: "Repo | Download PBS enterprise signing key"
+      ansible.builtin.get_url:
+        url: "{{ pbs_enterprise_source_key }}"
+        dest: "{{ pbs_repo_keyring_file }}"
+        mode: "0644"
+
+    - name: "Repo | Write PBS enterprise deb822 source file"
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/pbs.sources
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: {{ pbs_enterprise_source_repo.split()[1] }}
+          Suites: {{ pbs_enterprise_source_repo.split()[2] }}
+          Components: {{ pbs_enterprise_source_repo.split()[3:] | join(' ') }}
+          Architectures: amd64
+          Signed-By: {{ pbs_repo_keyring_file }}
+  when: 
+    - pbs_configure_repos|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pbs_debian_release_name
+    - pbs_package_source|lower == 'enterprise'
+  tags: ["pbs"]
+
+- name: "Repo | Configure PBS custom mirror repository (deb822)"
+  become: yes
+  block:
+    - name: "Repo | Ensure PBS keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pbs_repo_keyring_file | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: "Repo | Download PBS custom mirror signing key"
+      ansible.builtin.get_url:
+        url: "{{ pbs_custom_source_key }}"
+        dest: "{{ pbs_repo_keyring_file }}"
+        mode: "0644"
+
+    - name: "Repo | Write PBS custom mirror deb822 source file"
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/pbs.sources
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: {{ pbs_custom_source_repo.split()[1] }}
+          Suites: {{ pbs_custom_source_repo.split()[2] }}
+          Components: {{ pbs_custom_source_repo.split()[3:] | join(' ') }}
+          Architectures: amd64
+          Signed-By: {{ pbs_repo_keyring_file }}
+  when: 
+    - pbs_configure_repos|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pbs_debian_release_name
+    - pbs_package_source|lower == 'custom'
+  tags: ["pbs"]
+
+- name: "Install pbs server packages block"
+  become: yes
+  block:
+    - debug:
+        msg: "Installing pbs server packages, this may take a while..."
+      tags: ["pbs"]
+
+    - name: "Install pbs server packages"
+      apt: 
+        name: "{{ item }}"
+        state: latest
+        update_cache: yes
+      loop: 
+        - "{{ pbs_apt_packages_server }}"
+  when: 
+    - pbs_install_packages|bool
+    - pbs_install_type|lower is search('(server)')
+  tags: ["pbs"]
+
+- name: "Install pbs client packages block"
+  become: yes
+  block:
+    - debug:
+        msg: "Installing pbs client packages, this may take a while..."
+      tags: ["pbs"]
+
+    - name: "Install pbs client packages"
+      apt: 
+        name: "{{ item }}"
+        state: latest
+        update_cache: yes
+      loop: 
+        - "{{ pbs_apt_packages_client }}"
+  when: 
+    - pbs_install_packages|bool
+    - pbs_install_type|lower is search('(client)')
+  tags: ["pbs"]

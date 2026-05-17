@@ -1,0 +1,8 @@
+# Managed by Ansible – PVE sources
+{% if pve_package_source | lower == 'nosubscription' -%}
+deb [signed-by={{ pve_repo_keyring_file }}] {{ pve_nosubscription_source_repo }}
+{% elif pve_package_source | lower == 'enterprise' -%}
+deb [signed-by={{ pve_repo_keyring_file }}] {{ pve_enterprise_source_repo }}
+{% elif pve_package_source | lower == 'custom' -%}
+deb [signed-by={{ pve_repo_keyring_file }}] {{ pve_custom_source_repo }}
+{%- endif %}

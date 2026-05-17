@@ -1,49 +1,128 @@
 ---
-- name: "Add APT PVE signing key"
-  become: yes
-  apt_key:
-    url: "{{ pve_repo_key }}"
-  when: > 
-    ansible_distribution == 'Debian' and
-    ansible_distribution_release == pve_debian_release_name
+- name: Fail when invalid debian release was defined
+  fail:
+    msg: "Error! - Please specify a valid pve_debian_release_name; System is running: {{ ansible_distribution_release }} !"
+  when: ansible_distribution_release != pve_debian_release_name
   tags: ["pve"]
 
-- name: "Remove Enterprise PVE repository"
+- name: "Install pve role dependencies"
   become: yes
-  apt_repository:
-    repo: "{{ pve_repo_enterprise_subscription }}"
-    state: absent
-  when: >
-    ansible_distribution == 'Debian' and
-    ansible_distribution_release == pve_debian_release_name and
-    pve_use_enterprise_repos != true
+  apt: 
+    name: 
+      - "apt-transport-https"
+    state: latest
+    update_cache: yes
   tags: ["pve"]
 
-- name: "Remove Enterprise PVE repository"
-  become: yes
-  file:
-    path: "/etc/apt/sources.list.d/pve-enterprise.list"
-    state: absent
-  when: >
-    ansible_distribution == 'Debian' and
-    ansible_distribution_release == pve_debian_release_name and
-    pve_use_enterprise_repos != true
+# Run pve package configuration and setup
+- import_tasks: setup.yml
+
+# Run pve ceph package configuration and setup
+- import_tasks: setup_ceph.yml
+  when: pve_install_pve_ceph_repo | bool
+
+# - name: "Deploy Proxmox NAG patch for no-subscription packages"
+#   become: yes
+#   block:
+#   - name: "Deploy /usr/share/pve_nag_script.sh"
+#     become: true
+#     template:
+#       src: "pve_nag_script.sh.j2"
+#       dest: "/usr/share/pve_nag_script.sh"
+#       mode: a+x
+
+#   - name: "Run /usr/share/pve_nag_script.sh"
+#     become: true
+#     command: 'bash /usr/share/pve_nag_script.sh'
+
+#   - name: "Deploy apt hook /etc/apt/apt.conf.d/86pve-nags"
+#     become: true
+#     template:
+#       src: "86pve-nags.j2"
+#       dest: "/etc/apt/apt.conf.d/86pve-nags"
+#       mode: a+x
+#   when: pve_package_source|lower is search('(nosubscription|custom)')
+#   tags: ["pve","pve_remove_nag"]
+
+# - name: "Remove /etc/apt/apt.conf.d/86pve-nags"
+#   become: true
+#   file:
+#     path: "/etc/apt/apt.conf.d/86pve-nags"
+#     state: absent
+#   when: pve_package_source|lower is search('(enterprise)')
+#   tags: ["pve","pve_remove_nag"]
+
+- name: Gather facts again with setup module to get latest information
+  setup:
   tags: ["pve"]
 
-- name: "Add pve repository"
-  become: yes
-  apt_repository:
-    repo: "{{ pve_repo_enterprise_subscription if pve_use_enterprise_repos else pve_repo_no_subscription }}"
-    filename: pve-enterprise
-  when: >
-    ansible_distribution == 'Debian' and
-    ansible_distribution_release == pve_debian_release_name
+- name: Check if PVE kernel is active
+  fail:
+    msg: >
+      Wrong kernel active
+      [ {{ ansible_kernel }} does not contain "pve" ]
+      A system reboot might be required to activate the pve kernel.
+  when:
+      - pve_install_packages|bool
+      - '"pve" not in ansible_kernel'
   tags: ["pve"]
 
-- name: "Install pve packages"
-  become: yes
+- name: Check if PVE kernel is active
+  debug:
+    msg: >
+      PVE kernel active
+      [ {{ ansible_kernel }} contains "pve" ]
+      Installing 'ifupdown2'
+  when:
+      - pve_install_packages|bool
+      - '"pve" in ansible_kernel'
+  tags: ["pve"]
+
+- name: "Install ifupdown2 packages"
+  become: true
   package:
-    name: "{{ pve_apt_packages }}"
+    name:
+      - "zfsutils-linux"
+      - "ifupdown2"
     update_cache: yes
     state: latest
+  when:
+    - pve_install_packages|bool
+    - '"pve" in ansible_kernel'
+  tags: ["pve"]
+
+- name: "Configure pve sysctl config"
+  become: true
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: "present"
+    reload: True
+  with_dict: "{{ pve_sysctl }}"
+  when:
+    - pve_configure_sysctl|bool
+  tags: ["pve"]
+
+- name: "Configue ZFS options"
+  become: true
+  block:
+    - name: "Create directory '/etc/modprobe.d/'"
+      become: true
+      file:
+        path: "/etc/modprobe.d/"
+        state: directory
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: Write zfs options
+      become: true
+      template:
+        src: "{{ role_path }}/templates/etc/modprobe.d/zfs.conf.j2"
+        dest: "/etc/modprobe.d/zfs.conf"
+        owner: root
+        group: root
+        mode: 0644
+  when:
+    - pve_configure_zfs|bool
   tags: ["pve"]

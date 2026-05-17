@@ -1,5 +1,5 @@
 #!/bin/bash
-# Version	      0.3.1
+# Version	      0.4.0
 # Date		      17.05.2026
 # Author 	      DerDanilo 
 # Contributors    aboutte, xmirakulix, bootsie123, phidauex
@@ -62,6 +62,17 @@ function clean_up {
 
 # register the cleanup function to be called on the EXIT signal
 trap clean_up EXIT
+
+function cleanup_stale_tmp {
+    local base_dir="${TMP_DIR:-/var/tmp}"
+    local stale
+    stale=$(find "$base_dir" -maxdepth 1 -name "proxmox-????????" -type d -mtime +1 2>/dev/null || true)
+    if [[ -n "$stale" ]]; then
+        echo "Removing stale temp directories from previous runs:"
+        echo "$stale"
+        echo "$stale" | xargs rm -rf
+    fi
+}
 
 # Don't change if not required
 _now=$(date +%Y-%m-%d.%H.%M.%S)
@@ -159,11 +170,7 @@ function copyfilesystem {
 
 function compressandarchive {
     echo "Compressing files"
-    # archive the copied system files
     tar -cvzPf "$_filename_final" $_tdir/*.{tar,list,txt}
-
-    # copy config archive to backup folder
-    # this may be replaced by scp command to place in remote location
     cp $_filename_final $_bdir/
 }
 
@@ -188,6 +195,7 @@ if [ $HEALTHCHECKS -eq 1 ]; then
     curl -fsS -m 10 --retry 5 -o /dev/null $HEALTHCHECKS_URL/start
 fi
 
+cleanup_stale_tmp
 description
 are-we-root-abort-if-not
 check-num-backups
@@ -196,8 +204,7 @@ check-num-backups
 #stopservices
 
 copyfilesystem
+compressandarchive
 
 # We don't need to start services if we did not stop them
 #startservices
-
-compressandarchive

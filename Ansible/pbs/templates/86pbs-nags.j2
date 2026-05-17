@@ -1,0 +1,6 @@
+DPkg::Pre-Install-Pkgs {
+	"while read -r pkg; do case $pkg in *proxmox-widget-toolkit*) touch /tmp/.pbs-nag-script && exit 0; esac done < /dev/stdin";
+};
+DPkg::Post-Invoke {
+	"[ -f /tmp/.pbs-nag-script ] && { /usr/share/pbs_nag_script.sh; rm -f /tmp/.pbs-nag-script; }; exit 0";
+};

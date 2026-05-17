@@ -1,0 +1,125 @@
+---
+- name: Fail when invalid package source was defined
+  fail:
+    msg: "Error! - Please specify a valid pmg_package_source; nosubscription|enterprise|custom !"
+  when: pmg_package_source|lower is not search('(nosubscription|enterprise|custom)')
+  tags: ["pmg"]
+
+- name: Fail when invalid debian release was defined
+  fail:
+    msg: "Error! - Please specify a valid pmg_debian_release_name; System is running: {{ ansible_distribution_release }} !"
+  when: ansible_distribution_release != pmg_debian_release_name
+  tags: ["pmg"]
+
+- name: "Cleanup other pmg repo config"
+  file:
+    path: "/etc/apt/sources.list.d/{{ item }}"
+    state: absent
+  loop:
+    - "pmg-enterprise.list"
+    - "pve-install-repo.list"
+    - "pmg.list"
+  when: pmg_repo_cleanup|bool
+  tags: ["pmg"]
+
+- name: "Add contrib repository"
+  replace:
+    dest: /etc/apt/sources.list
+    regexp: '^(deb.+)(?<! non-free)$'
+    replace: '\1 non-free'
+  tags: ["pmg"]
+
+- name: Install pmg package sources from nosubscription repo
+  become: yes
+  block:
+    - name: "Add APT pmg signing key"
+      apt_key:
+        url: "{{ pmg_nosubscription_source_key }}"
+        keyring: "{{ pmg_repo_keyring_file }}"
+
+    - name: "Add pmg nosubscription repository"
+      apt_repository:
+        repo: "{{ pmg_nosubscription_source_repo }}"
+        filename: 'pmg-enterprise'
+        update_cache: yes
+  when: 
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pmg_debian_release_name
+    - pmg_package_source|lower == 'nosubscription'
+  tags: ["pmg"]
+
+- name: Install pmg package sources from enterprise repo
+  become: yes
+  block:
+    - name: "Add APT pmg signing key"
+      apt_key:
+        url: "{{ pmg_enterprise_source_key }}"
+        keyring: "{{ pmg_repo_keyring_file }}"
+
+    - name: "Add pmg enterprise repository"
+      apt_repository:
+        repo: "{{ pmg_enterprise_source_repo }}"
+        filename: 'pmg-enterprise'
+        update_cache: yes
+  when: 
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pmg_debian_release_name
+    - pmg_package_source|lower == 'enterprise'
+  tags: ["pmg"]
+
+- name: Install pmg package sources from custom mirror
+  become: yes
+  block:
+    - name: "Add APT pmg signing key"
+      apt_key:
+        url: "{{ pmg_custom_source_key }}"
+        keyring: "{{ pmg_repo_keyring_file }}"
+
+    - name: "Add pmg custom mirror repository"
+      apt_repository:
+        repo: "{{ pmg_custom_source_repo }}"
+        filename: 'pmg-enterprise'
+        update_cache: yes
+  when: 
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pmg_debian_release_name
+    - pmg_package_source|lower == 'custom'
+  tags: ["pmg"]
+
+- name: "Install pmg packages block"
+  become: yes
+  block:
+    - debug:
+        msg: "Installing PMG packages, this may take a while..."
+      tags: ["pmg"]
+
+    - name: "Install pmg packages"
+      apt: 
+        name: "{{ item }}"
+        state: latest
+        update_cache: yes
+      loop:
+        - "{{ pmg_packages }}"
+  when: 
+    - pmg_install_packages|bool
+  tags: ["pmg"]
+
+
+- name: "Install pmg packages addon block"
+  become: yes
+  block:
+    - debug:
+        msg: "Installing PMG packages addon, this may take a while..."
+      tags: ["pmg"]
+
+    - name: "Install pmg packages addon"
+      apt: 
+        name: "{{ item }}"
+        state: latest
+        update_cache: yes
+      loop:
+        - "{{ pmg_packages_addon }}"
+  when: 
+    - pmg_install_packages|bool
+  tags: ["pmg"]
+

@@ -1,1 +1,35 @@
 ---
+- name: restart postfix
+  become: yes
+  service: 
+    name: postfix
+    state: restarted
+  tags: ["pmg"]
+
+- name: pmgconfig sync
+  become: yes
+  command: pmgconfig sync --restart 1
+  tags: ["pmg"]
+
+- name: restart pmgproxy
+  become: yes
+  service: 
+    name: pmgproxy
+    state: restarted
+  tags: ["pmg"]
+
+- name: restart bind9
+  become: yes
+  service: 
+    name: bind9
+    state: restarted
+  tags: ["pmg"]
+
+- name: disable systemd-resolved
+  become: yes
+  service:
+    name: systemd-resolved
+    state: stopped
+    enabled: no
+  ignore_errors: true
+  tags: ["pmg"]

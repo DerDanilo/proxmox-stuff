@@ -1,24 +1,51 @@
 ---
-# Set to true to use enterprise repos
-# Default is false
-pbs_use_enterprise_repos: False
+# Cleanup old repo references that might exist
+pbs_repo_cleanup: True
 
-pbs_debian_release_name: "buster"
+# Configure repos
+# Set to 'false' to skip repo related tasks
+# This is useful if repos were configured manually
+pbs_configure_repos: True
 
-pbs_repo_key: "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
+# Set to false to only deploy packages sources
+# Setting this to 'false' prevents unintended
+# updates/software changes on running nodes.
+pbs_install_packages: True
 
-# Remove line and uncomment no subscription line once beta is over.
-#pbs_repo_no_subscription: "deb http://download.proxmox.com/debian/pbs buster pbstest"
-pbs_repo_no_subscription: "deb http://download.proxmox.com/debian/pbs {{ pbs_debian_release_name }} pbs-no-subscription"
-pbs_repo_enterprise_subscription: "deb https://enterprise.proxmox.com/debian/pbs {{ pbs_debian_release_name }} pbs-enterprise"
+# Select the system release name for the pbs packages
+# Automatic detection not always useful here.
+pbs_debian_release_name: "trixie"
 
-pbs_install_server: true
-pbs_install_client: false
+# select package source
+# "nosubscription" = install from upstream package source
+# "enterprise" = install from upstream package source
+# "custom" = install from custom package source
+pbs_package_source: "nosubscription"
 
+# Target keyring file
+pbs_repo_keyring_file: "/etc/apt/trusted.gpg.d/proxmox-release-{{ pbs_debian_release_name | lower }}.gpg"
+
+# no subscription
+pbs_nosubscription_source_key: 'https://enterprise.proxmox.com/debian/proxmox-release-{{ pbs_debian_release_name | lower }}.gpg'
+pbs_nosubscription_source_repo: 'deb http://download.proxmox.com/debian/pbs {{ pbs_debian_release_name | lower }} pbs-no-subscription'
+
+# enterprise
+pbs_enterprise_source_key: 'https://enterprise.proxmox.com/debian/proxmox-release-{{ pbs_debian_release_name | lower }}.gpg'
+pbs_enterprise_source_repo: 'deb https://enterprise.proxmox.com/debian/pbs {{ pbs_debian_release_name | lower }} pbs-enterprise'
+
+# custom - no subscription
+# Set pbs_custom_source_key and pbs_custom_source_repo to your own mirror URL.
+pbs_custom_source_key: 'http://mirror.example.com/proxmox/proxmox-release-{{ pbs_debian_release_name | lower }}.gpg'
+pbs_custom_source_repo: 'deb http://mirror.example.com/proxmox/pbs {{ pbs_debian_release_name | lower }} pbs-no-subscription'
+
+# select install type
+# 'server' or 'client'
+pbs_install_type: 'server'
+
+# Optional install client package via .deb download method
 # This is potentially insecure since no package verification is done
-# Handle with care
+# Handle with care ! ! !
 pbs_install_client_via_deb_download: false
-
 pbs_install_client_deb_url_base: "http://download.proxmox.com/debian/pbs/dists/buster/pbs-no-subscription/binary-amd64/"
 pbs_install_client_deb_version: "latest" #"1.0.8-1" # Can also be "latest"
 pbs_install_client_deb_file: "proxmox-backup-client_{{ pbs_install_client_deb_version }}_amd64.deb"
@@ -30,3 +57,17 @@ pbs_apt_packages_server:
 
 pbs_apt_packages_client:
   - 'proxmox-backup-client'
+
+# Sysctl config is usually not required when installing the client
+pbs_configure_sysctl: False
+pbs_sysctl:
+  "vm.swappiness": "0"
+  "vm.vfs_cache_pressure": "100"
+  "dev.raid.speed_limit_min": "800000"
+  "dev.raid.speed_limit_max": "1600000"
+
+pbs_configure_zfs: False
+# zfs arc max setting
+# This example uses max 24GB
+pbs_zfs_conf:
+  "zfs_arc_max": "25769803776"

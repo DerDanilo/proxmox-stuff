@@ -1,0 +1,192 @@
+---
+- name: Fail when invalid package source was defined
+  fail:
+    msg: "Error! - Please specify a valid pve_ceph_package_source; nosubscription|enterprise|custom !"
+  when: pve_ceph_package_source|lower is not search('(nosubscription|enterprise|custom)')
+  tags: ["pve"]
+
+- name: "Cleanup other pve-ceph repo config"
+  file:
+    path: "/etc/apt/sources.list.d/{{ item }}"
+    state: absent
+  loop:
+    - "pve-ceph.list"
+    - "pveceph.list"
+    - "ceph.list"
+    - "ceph-sources.list"
+    - "pve-ceph-sources.list"
+  when: 
+    - pve_repo_cleanup|bool
+    - pve_configure_repos|bool
+  tags: ["pve"]
+
+## before debian 13 - START
+- name: Install pve-ceph package sources from nosubscription repo
+  become: yes
+  block:
+    - name: "Add pve-ceph nosubscription repository"
+      apt_repository:
+        repo: "{{ pve_ceph_nosubscription_source_repo }}"
+        filename: 'ceph'
+        update_cache: yes
+  when: 
+    - pve_configure_repos|bool
+    - pve_use_pve_ceph_repo|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_ceph_package_source|lower == 'nosubscription'
+    - pve_debian_distribution_major_version | int <= 12
+  tags: ["pve"]
+
+- name: Install pve-ceph package sources from enterprise repo
+  become: yes
+  block:
+    - name: "Add pve-ceph enterprise repository"
+      apt_repository:
+        repo: "{{ pve_ceph_enterprise_source_repo }}"
+        filename: 'ceph'
+        update_cache: yes
+  when: 
+    - pve_configure_repos|bool
+    - pve_use_pve_ceph_repo|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_ceph_package_source|lower == 'enterprise'
+    - pve_debian_distribution_major_version | int <= 12
+  tags: ["pve"]
+
+- name: Install pve-ceph package sources from custom mirror
+  become: yes
+  block:
+    - name: "Add pve-ceph custom mirror repository"
+      apt_repository:
+        repo: "{{ pve_ceph_custom_source_repo }}"
+        filename: 'ceph'
+        update_cache: yes
+  when: 
+    - pve_configure_repos|bool
+    - pve_use_pve_ceph_repo|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_ceph_package_source|lower == 'custom'
+    - pve_debian_distribution_major_version | int <= 12
+  tags: ["pve"]
+
+## before debian 13 - END
+## debian 13 - START
+
+# === Ceph nosubscription (Debian >= 13) ===
+- name: "Install PVE Ceph nosubscription sources (Debian >= 13)"
+  become: yes
+  when:
+    - pve_configure_repos | bool
+    - ansible_distribution == "Debian"
+    - pve_debian_distribution_major_version | int >= 13
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_ceph_package_source | lower == 'nosubscription'
+  tags: ["pve"]
+  block:
+    - name: "Ensure keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pve_repo_keyring_file | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Download PVE signing key (nosubscription)"
+      ansible.builtin.get_url:
+        url: "{{ pve_nosubscription_source_key }}"
+        dest: "{{ pve_repo_keyring_file }}"
+        mode: '0644'
+
+    - name: "Render PVE Ceph apt sources list (nosubscription)"
+      ansible.builtin.template:
+        src: "templates/etc/apt/sources.list.d/pve-ceph-sources.list.j2"
+        dest: "/etc/apt/sources.list.d/pve-ceph-sources.list"
+        owner: root
+        group: root
+        mode: '0644'
+
+# === Ceph enterprise (Debian >= 13) ===
+- name: "Install PVE Ceph enterprise sources (Debian >= 13)"
+  become: yes
+  when:
+    - pve_configure_repos | bool
+    - ansible_distribution == "Debian"
+    - pve_debian_distribution_major_version | int >= 13
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_ceph_package_source | lower == 'enterprise'
+  tags: ["pve"]
+  block:
+    - name: "Ensure keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pve_repo_keyring_file | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Download PVE signing key (enterprise)"
+      ansible.builtin.get_url:
+        url: "{{ pve_enterprise_source_key }}"
+        dest: "{{ pve_repo_keyring_file }}"
+        mode: '0644'
+
+    - name: "Render PVE Ceph apt sources list (enterprise)"
+      ansible.builtin.template:
+        src: "templates/etc/apt/sources.list.d/pve-ceph-sources.list.j2"
+        dest: "/etc/apt/sources.list.d/pve-ceph-sources.list"
+        owner: root
+        group: root
+        mode: '0644'
+
+# === Ceph custom (Debian >= 13) ===
+- name: "Install PVE Ceph custom mirror sources (Debian >= 13)"
+  become: yes
+  when:
+    - pve_configure_repos | bool
+    - ansible_distribution == "Debian"
+    - pve_debian_distribution_major_version | int >= 13
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_ceph_package_source | lower == 'custom'
+  tags: ["pve"]
+  block:
+    - name: "Ensure keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pve_repo_keyring_file | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Download PVE signing key (custom)"
+      ansible.builtin.get_url:
+        url: "{{ pve_custom_source_key }}"
+        dest: "{{ pve_repo_keyring_file }}"
+        mode: '0644'
+
+    - name: "Render PVE Ceph apt sources list (custom)"
+      ansible.builtin.template:
+        src: "templates/etc/apt/sources.list.d/pve-ceph-sources.list.j2"
+        dest: "/etc/apt/sources.list.d/pve-ceph-sources.list"
+        owner: root
+        group: root
+        mode: '0644'
+
+## debian 13 - END
+
+- name: "Install pve-ceph packages block"
+  become: yes
+  block:
+    - debug:
+        msg: "Installing pve-ceph packages, this may take a while..."
+      tags: ["pve"]
+
+    - name: "Install pve packages"
+      apt: 
+        name: "ceph-common"
+        state: latest
+        update_cache: yes
+  when: 
+    - pve_install_packages|bool
+    - pve_use_pve_ceph_repo|bool
+  tags: ["pve"]
+
+
+
+

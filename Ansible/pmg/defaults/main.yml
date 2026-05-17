@@ -1,13 +1,52 @@
 ---
-# Set to true to use enterprise repos
-# Default is false
-pmg_use_enterprise_repos: False
+# Cleanup old repo references that might exist
+pmg_repo_cleanup: True
 
-pmg_debian_release_name: "buster"
+# Select the system release name for the pmg packages
+pmg_debian_release_name: "bookworm"
 
-pmg_repo_key: "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
-pmg_repo_no_subscription: "deb http://download.proxmox.com/debian/pmg {{ pmg_debian_release_name }} pmg-no-subscription"
-pmg_repo_enterprise_subscription: "deb https://enterprise.proxmox.com/debian/pmg {{ pmg_debian_release_name }} pmg-enterprise"
+# select package source
+# "nosubscription" = install from upstream package source
+# "enterprise" = install from upstream package source
+# "custom" = install from custom package source
+pmg_package_source: "nosubscription"
 
-pmg_apt_packages:
+# Target keyring file
+pmg_repo_keyring_file: "/etc/apt/trusted.gpg.d/proxmox-release-{{ pmg_debian_release_name | lower }}.gpg"
+
+# no subscription
+pmg_nosubscription_source_key: 'https://enterprise.proxmox.com/debian/proxmox-release-{{ pmg_debian_release_name | lower }}.gpg'
+pmg_nosubscription_source_repo: 'deb http://download.proxmox.com/debian/pmg {{ pmg_debian_release_name | lower }} pmg-no-subscription'
+
+# enterprise
+pmg_enterprise_source_key: 'https://enterprise.proxmox.com/debian/proxmox-release-{{ pmg_debian_release_name | lower }}.gpg'
+pmg_enterprise_source_repo: 'deb https://enterprise.proxmox.com/debian/pmg {{ pmg_debian_release_name | lower }} pmg-enterprise'
+
+# custom - no subscription
+# Set pmg_custom_source_key and pmg_custom_source_repo to your own mirror URL.
+pmg_custom_source_key: 'http://mirror.example.com/proxmox/proxmox-release-{{ pmg_debian_release_name | lower }}.gpg'
+pmg_custom_source_repo: 'deb http://mirror.example.com/proxmox/pmg {{ pmg_debian_release_name | lower }} pmg-no-subscription'
+
+# Set to false to only deploy package sources and config
+# Setting this to 'false' will not install or update any pmg package
+pmg_install_packages: True
+
+pmg_packages:
   - 'proxmox-mailgateway'
+  - 'libclamunrar'
+  - 'p7zip-rar'
+
+pmg_packages_addon:
+  - 'irqbalance'
+  - 'dnsutils'
+  - 'ifupdown2'
+  - 'fail2ban'
+  - 'socat'
+  - 'vim'
+  - 'nano'
+  - 'patch'      # Needed to remove the subscription nag screen
+  - 'bind9'
+  - 'bind9utils'
+  - 'bind9-doc'
+
+pmg_search_domain: 'example.com'

@@ -1,0 +1,205 @@
+---
+- name: Fail when invalid package source was defined
+  fail:
+    msg: "Error! - Please specify a valid pve_package_source; nosubscription|enterprise|custom !"
+  when: pve_package_source|lower is not search('(nosubscription|enterprise|custom)')
+  tags: ["pve"]
+
+- name: "Cleanup other pve repo config"
+  file:
+    path: "/etc/apt/sources.list.d/{{ item }}"
+    state: absent
+  loop:
+    - "pve-enterprise.list"
+    - "pve-install-repo.list"
+    - "pve-no-subscription.list"
+    - "pve.list"
+    - "pve-sources.list"
+  when: 
+    - pve_repo_cleanup|bool
+    - pve_configure_repos|bool
+  tags: ["pve"]
+
+## before debian 13 - START
+- name: Install pve package sources from nosubscription repo
+  become: yes
+  block:
+    - name: "Add APT pve signing key"
+      apt_key:
+        url: "{{ pve_nosubscription_source_key }}"
+        keyring: "{{ pve_repo_keyring_file }}"
+
+    - name: "Add pve nosubscription repository"
+      apt_repository:
+        repo: "{{ pve_nosubscription_source_repo }}"
+        filename: 'pve-enterprise'
+        update_cache: yes
+  when: 
+    - pve_configure_repos|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_package_source|lower == 'nosubscription'
+    - pve_debian_distribution_major_version | int <= 12
+  tags: ["pve"]
+
+- name: Install pve package sources from enterprise repo
+  become: yes
+  block:
+    - name: "Add APT pve signing key"
+      apt_key:
+        url: "{{ pve_enterprise_source_key }}"
+        keyring: "{{ pve_repo_keyring_file }}"
+
+    - name: "Add pve enterprise repository"
+      apt_repository:
+        repo: "{{ pve_enterprise_source_repo }}"
+        filename: 'pve-enterprise'
+        update_cache: yes
+  when: 
+    - pve_configure_repos|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_package_source|lower == 'enterprise'
+    - pve_debian_distribution_major_version | int <= 12
+  tags: ["pve"]
+
+- name: Install pve package sources from custom mirror
+  become: yes
+  block:
+    - name: "Add APT pve signing key"
+      apt_key:
+        url: "{{ pve_custom_source_key }}"
+        keyring: "{{ pve_repo_keyring_file }}"
+
+    - name: "Add pve custom mirror repository"
+      apt_repository:
+        repo: "{{ pve_custom_source_repo }}"
+        filename: 'pve-enterprise'
+        update_cache: yes
+  when: 
+    - pve_configure_repos|bool
+    - ansible_distribution == "Debian"
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_package_source|lower == 'custom'
+    - pve_debian_distribution_major_version | int <= 12
+  tags: ["pve"]
+
+## before debian 13 - END
+## debian 13 - START
+
+# === PVE nosubscription (Debian >= 13) ===
+- name: "Install PVE nosubscription sources (Debian >= 13)"
+  become: yes
+  when:
+    - pve_configure_repos | bool
+    - ansible_distribution == "Debian"
+    - pve_debian_distribution_major_version | int >= 13
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_package_source | lower == 'nosubscription'
+  tags: ["pve"]
+  block:
+    - name: "Ensure keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pve_repo_keyring_file | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Download PVE signing key (nosubscription)"
+      ansible.builtin.get_url:
+        url: "{{ pve_nosubscription_source_key }}"
+        dest: "{{ pve_repo_keyring_file }}"
+        mode: '0644'
+
+    - name: "Render PVE apt sources list (nosubscription)"
+      ansible.builtin.template:
+        src: "templates/etc/apt/sources.list.d/pve-sources.list.j2"
+        dest: "/etc/apt/sources.list.d/pve-sources.list"
+        owner: root
+        group: root
+        mode: '0644'
+
+# === PVE enterprise (Debian >= 13) ===
+- name: "Install PVE enterprise sources (Debian >= 13)"
+  become: yes
+  when:
+    - pve_configure_repos | bool
+    - ansible_distribution == "Debian"
+    - pve_debian_distribution_major_version | int >= 13
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_package_source | lower == 'enterprise'
+  tags: ["pve"]
+  block:
+    - name: "Ensure keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pve_repo_keyring_file | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Download PVE signing key (enterprise)"
+      ansible.builtin.get_url:
+        url: "{{ pve_enterprise_source_key }}"
+        dest: "{{ pve_repo_keyring_file }}"
+        mode: '0644'
+
+    - name: "Render PVE apt sources list (enterprise)"
+      ansible.builtin.template:
+        src: "templates/etc/apt/sources.list.d/pve-sources.list.j2"
+        dest: "/etc/apt/sources.list.d/pve-sources.list"
+        owner: root
+        group: root
+        mode: '0644'
+
+# === PVE custom (Debian >= 13) ===
+- name: "Install PVE custom mirror sources (Debian >= 13)"
+  become: yes
+  when:
+    - pve_configure_repos | bool
+    - ansible_distribution == "Debian"
+    - pve_debian_distribution_major_version | int >= 13
+    - ansible_distribution_release == pve_debian_release_name
+    - pve_package_source | lower == 'custom'
+  tags: ["pve"]
+  block:
+    - name: "Ensure keyring directory exists"
+      ansible.builtin.file:
+        path: "{{ pve_repo_keyring_file | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Download PVE signing key (custom)"
+      ansible.builtin.get_url:
+        url: "{{ pve_custom_source_key }}"
+        dest: "{{ pve_repo_keyring_file }}"
+        mode: '0644'
+
+    - name: "Render PVE apt sources list (custom)"
+      ansible.builtin.template:
+        src: "templates/etc/apt/sources.list.d/pve-sources.list.j2"
+        dest: "/etc/apt/sources.list.d/pve-sources.list"
+        owner: root
+        group: root
+        mode: '0644'
+
+## debian 13 - END
+
+- name: "Install pve packages block"
+  become: yes
+  block:
+    - debug:
+        msg: "Installing pve packages, this may take a while..."
+      tags: ["pve"]
+
+    - name: "Install pve packages"
+      apt: 
+        name: "{{ item }}"
+        state: latest
+        update_cache: yes
+      loop:
+        - "{{ pve_packages }}"
+  when: 
+    - pve_install_packages|bool
+  tags: ["pve"]
+
+
+
+
