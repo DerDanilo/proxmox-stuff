@@ -6,7 +6,7 @@ Install Proxmox Mail Gateway
 
 Supported Operating Systems:
 
-* Debian Bullseye
+* Debian Bookworm
 
 ## Default Variables
 

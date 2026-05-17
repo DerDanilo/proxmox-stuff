@@ -1,4 +1,4 @@
-# Role: croit
+# Role: pbs
 
 Install Proxmox Backup Server
 
@@ -6,7 +6,7 @@ Install Proxmox Backup Server
 
 Supported Operating Systems:
 
-* Debian Buster
+* Debian Trixie
 
 ## Default Variables
 

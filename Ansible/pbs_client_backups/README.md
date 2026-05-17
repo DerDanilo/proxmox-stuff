@@ -8,7 +8,7 @@ Deploys `proxmox-backup-client` backup scripts and cron jobs on Debian-based hos
 
 ## Requirements
 
-- Debian-based OS (tested on Debian 11/12, Proxmox VE)
+- Debian-based OS (Debian Bookworm or newer, Proxmox VE)
 - `proxmox-backup-client` — no separate installation needed on PVE nodes,
   it ships with the default PVE package sources
 

@@ -6,7 +6,7 @@ Install Proxmox VE
 
 Supported Operating Systems:
 
-* Debian Buster
+* Debian Trixie
 
 ## Default Variables
 
