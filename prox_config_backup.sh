@@ -1,6 +1,6 @@
 #!/bin/bash
-# Version	      0.3.0
-# Date		      19.04.2024
+# Version	      0.3.1
+# Date		      17.05.2026
 # Author 	      DerDanilo 
 # Contributors    aboutte, xmirakulix, bootsie123, phidauex
 
@@ -76,6 +76,7 @@ _filename7="$_tdir/proxmoxreport.$_now.txt"
 _filename8="$_tdir/proxmoxlocalbin.$_now.tar"
 _filename9="$_tdir/proxmoxetcpve.$_now.tar"
 _filename10="$_tdir/proxmoxopt.$_now.tar"
+_filename11="$_tdir/proxmoxvzsnippets.$_now.tar"
 _filename_final="$_tdir/pve_"$_HOSTNAME"_"$_now".tar.gz"
 
 ##########
@@ -84,7 +85,7 @@ function description {
 # Check to see if we are in an interactive terminal, if not, skip the description
     if [[ -t 0 && -t 1 ]]; then
         clear
-        files_to_be_saved="/etc/*, /var/lib/pve-cluster/*, /root/*, /var/spool/cron/*, /usr/share/kvm/*.vbios"
+        files_to_be_saved="/etc/*, /var/lib/pve-cluster/*, /var/lib/vz/snippets/*, /root/*, /var/spool/cron/*, /usr/share/kvm/*.vbios"
         if [ "$BACKUP_OPT_FOLDER" = true ]; then files_to_be_saved="${files_to_be_saved}, /opt/*"; fi
         cat <<EOF
 
@@ -139,6 +140,8 @@ function copyfilesystem {
     tar --warning='no-file-ignored' -cvPf "$_filename4" /var/spool/cron/.
 
     if [ "$BACKUP_OPT_FOLDER" = true ]; then tar --warning='no-file-ignored' -cvPf "$_filename10" --one-file-system /opt/.; fi
+
+    if [ "$(ls -A /var/lib/vz/snippets 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename11" /var/lib/vz/snippets/.; fi
 
     if [ "$(ls -A /usr/local/bin 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename8" /usr/local/bin/.; fi
 
