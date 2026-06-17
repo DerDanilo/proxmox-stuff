@@ -1,0 +1,22 @@
+---
+# Post-deploy connectivity check: run each script without arguments so it only
+# lists existing backups (no data is written). Non-fatal: a failure here must
+# not abort the play, and listing is side-effect free, so changed_when=false.
+
+- name: "run each backup script in list mode (connectivity check)"
+  become: true
+  ansible.builtin.command:
+    cmd: "bash {{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}_{{ item.name }}.sh"
+  register: __pbs_client_backups_test
+  changed_when: false
+  failed_when: false
+  loop: "{{ pbs_client_backups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "show connectivity test output"
+  ansible.builtin.debug:
+    var: item.stdout_lines
+  loop: "{{ __pbs_client_backups_test.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name | default('') }}"

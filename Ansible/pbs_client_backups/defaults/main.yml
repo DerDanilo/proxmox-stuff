@@ -1,54 +1,187 @@
 ---
-pbs_client_backups_pbs_encryption_password: ''
-# The keyfile needs to be stored e.g. in 'host_vars/hostname/pbs_client_backup_encryption.key.vault'
-pbs_client_backups_pbs_encryption_keyfile_source_base_path: '{{ inventory_dir }}/host_vars/{{ inventory_hostname }}'
-# Generate vault file as "BLA_encryption.key.vault"
-pbs_client_backups_pbs_encryption_keyfile: '' #'{{ inventory_hostname }}_encryption.key'
-pbs_client_backups_pbs_user_string: 'backup@pbs!{{ inventory_hostname }}'
-pbs_client_backups_pbs_password: '' # Can be a password or API token
-pbs_client_backups_pbs_server: 'pbs.mydomain.de'
-pbs_client_backups_pbs_server_port: '8007'
-pbs_client_backups_pbs_fingerprint: 'FINGERPRINT'
-pbs_client_backups_pbs_datastore: 'DATASTORE_NAME'
-pbs_client_Backups_pbs_namespace: 'NAMESPACE_NAME' 
+# ============================================================================
+# Role: pbs_client_backups
+# ----------------------------------------------------------------------------
+# Deploys per-target Proxmox Backup *client* wrapper scripts (one script per
+# backup target), optional client-side encryption key files and matching cron
+# jobs. Each generated script calls `proxmox-backup-client backup ...` and
+# pushes the data to a Proxmox Backup Server (PBS).
+#
+# Variable naming: every variable of this role is prefixed with
+# `pbs_client_backups_`. Per-target overrides live inside the
+# `pbs_client_backups` list and use the short `pbs_*` / `cron_*` keys
+# documented in the annotated example at the bottom of this file.
+#
+# Resolution order for connection settings (highest priority first):
+#   1. per-target key inside a `pbs_client_backups` list item
+#      (e.g. `item.pbs_pbs_server`)
+#   2. role default below (e.g. `pbs_client_backups_pbs_server`)
+# ============================================================================
 
+# ---------------------------------------------------------------------------
+# PBS connection (global defaults; usually overridden per group / per target)
+# ---------------------------------------------------------------------------
+
+# PBS server host. May be a DNS name, an IPv4 or a *bare* IPv6 address; the
+# template auto-brackets IPv6 literals, so do not add brackets yourself.
+pbs_client_backups_pbs_server: 'PBS_SERVER_HOSTNAME'
+# pbs_client_backups_pbs_server: '192.0.2.10'      # example: IPv4
+# pbs_client_backups_pbs_server: '2001:db8::10'    # example: IPv6 (bare)
+
+# PBS API port (proxmox-backup-proxy listens on 8007 by default).
+pbs_client_backups_pbs_server_port: '8007'
+
+# PBS host fingerprint (SHA-256 of the server certificate). Required so the
+# client can trust the server. Keep the fleet fingerprints in group_vars and
+# reference them per target, e.g.
+#   pbs_pbs_fingerprint: '{{ pbs_client_backups_pbs_fingerprint_bx123 }}'
+pbs_client_backups_pbs_fingerprint: 'FINGERPRINT'
+
+# Authentication user/token string. Form: 'user@realm' or 'user@realm!tokenid'.
+pbs_client_backups_pbs_user_string: 'backup@pbs!{{ inventory_hostname }}'
+
+# Password or API token secret. NEVER store in cleartext: reference a vault
+# variable, e.g. '{{ vault_pbs_password_myhost }}'.
+pbs_client_backups_pbs_password: ''
+
+# Target datastore on the PBS.
+pbs_client_backups_pbs_datastore: 'DATASTORE_NAME'
+
+# Optional namespace inside the datastore. Empty = omit `--ns` entirely.
+pbs_client_backups_pbs_namespace: ''
+# pbs_client_backups_pbs_namespace: 'myproject'    # example
+
+# ---------------------------------------------------------------------------
+# Bandwidth limiting (optional) -> proxmox-backup-client backup --rate/--burst
+# ---------------------------------------------------------------------------
+# Empty = unlimited (flags omitted). Values use the PBS "HumanByte" format:
+# bytes/s with an optional unit. SI units (KB, MB, GB) are base-10, binary
+# units (KiB, MiB, GiB) are base-2. `--rate` is the sustained limit, `--burst`
+# the token-bucket size that permits short bursts above the rate.
+#
+# IMPORTANT: HumanByte rate limiting only works on a *fixed* client
+# (proxmox-backup-client from PBS >= 3.3 / 4.x, after bug #5622). On older
+# clients the value is parsed as a raw integer and the limit is silently
+# ignored. All Trixie (Debian 13) hosts ship a PBS 4.x client, so they are fine.
+pbs_client_backups_pbs_rate: ''
+# pbs_client_backups_pbs_rate: '90MB'                     # example: 90 MB/s (base-10)
+# pbs_client_backups_pbs_rate: '90MiB'                    # example: 90 MiB/s (base-2)
+pbs_client_backups_pbs_burst: ''
+# pbs_client_backups_pbs_burst: '180MB'                   # example: allow short bursts
+
+# ---------------------------------------------------------------------------
+# Encryption (optional)
+# ---------------------------------------------------------------------------
+# Symmetric passphrase for client-side encryption (exported as
+# PBS_ENCRYPTION_PASSWORD). Empty = no passphrase. Reference a vault variable.
+pbs_client_backups_pbs_encryption_password: ''
+
+# Encryption *key file* support. The vault-encrypted key is fetched from the
+# controller and decrypted onto the target. Store it next to the host_vars as
+# "<name>_encryption.key.vault".
+pbs_client_backups_pbs_encryption_keyfile_source_base_path: '{{ inventory_dir }}/host_vars/{{ inventory_hostname }}'
+# Global key file name (WITHOUT the ".vault" suffix). Empty = no global key.
+pbs_client_backups_pbs_encryption_keyfile: ''
+# pbs_client_backups_pbs_encryption_keyfile: '{{ inventory_hostname }}_encryption.key'
+
+# ---------------------------------------------------------------------------
+# Cron defaults (per-target overridable via item.cron_*)
+# ---------------------------------------------------------------------------
+# Master default: cron entries are created *disabled* unless a target opts in
+# with `cron_disabled: 'no'`.
 pbs_client_backups_default_cron_disabled: 'yes'
-# example once per day at 01:00
+# Default schedule: once per day at 01:00.
 pbs_client_backups_default_cron_minute: '0'
 pbs_client_backups_default_cron_hour: '1'
 pbs_client_backups_default_cron_day: '*'
 pbs_client_backups_default_cron_weekday: '*'
 pbs_client_backups_default_cron_month: '*'
+# User the cron job runs as. Full-filesystem backups need root.
+pbs_client_backups_cron_user: 'root'
 
-pbs_client_backups_script_owner: "root"
-pbs_client_backups_script_path: "/opt/backup_scripts"
-pbs_client_backups_script_base: "pbs_client_backups"
+# ---------------------------------------------------------------------------
+# Filesystem layout & permissions
+# ---------------------------------------------------------------------------
+# Scripts and key files embed secrets (PBS token, encryption material), so the
+# directory and files are root-owned and not readable by other local users.
+pbs_client_backups_script_owner: 'root'
+pbs_client_backups_script_path: '/opt/backup_scripts'
+pbs_client_backups_script_base: 'pbs_client_backups'
 pbs_client_backups_keyfile_base: "{{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}"
+# Octal modes are quoted strings so YAML does not reinterpret them as numbers.
+pbs_client_backups_script_dir_mode: '0700'
+pbs_client_backups_script_mode: '0700'
+pbs_client_backups_keyfile_mode: '0600'
 
-# Test script (list backup) after setup
-# This command will return no results of backup never run before
+# ---------------------------------------------------------------------------
+# Read-only mount helper (FUSE)
+# ---------------------------------------------------------------------------
+# Alongside each backup script, deploy a "<base>_<name>_mount.sh" helper that
+# mounts a chosen snapshot read-only via `proxmox-backup-client mount`. Switches:
+# status | list | mount [SNAPSHOT] [ARCHIVE] | remount | umount. Without a
+# snapshot it offers an interactive picker of the available backups.
+pbs_client_backups_deploy_mount_script: true
+# Disable per target with `mount_script: false` inside a pbs_client_backups item.
+
+# Base for the default mount point. The effective default per target is
+# "<base>_<datastore>_<name>" (e.g. /mnt/backup_mydatastore_mybackup).
+# Override per target with `pbs_mount_path: '/mnt/whatever'`.
+pbs_client_backups_mount_base: '/mnt/backup'
+
+# ---------------------------------------------------------------------------
+# Lifecycle / pruning (opt-in)
+# ---------------------------------------------------------------------------
+# The role is additive by default. Set this to true to also RECONCILE the host:
+# wrapper scripts and cron entries for targets no longer in `pbs_client_backups`
+# are removed (e.g. after a rename/removal). Guarded so an empty list never
+# prunes. Encryption key files are never auto-pruned (may be shared/global).
+pbs_client_backups_prune: false
+
+# ---------------------------------------------------------------------------
+# Post-deploy connectivity test
+# ---------------------------------------------------------------------------
+# Runs each generated script without arguments (lists existing backups) to
+# verify connectivity/auth. Non-fatal and side-effect free. Returns no rows if
+# the target was never backed up before.
 pbs_client_backups_test_script: true
 
-pbs_client_backups:
-  - name: "mybackup" # PBS default for 'backup id' is the hostname
-    source: 
-      - name: "backup"
-        path: "/opt/folder/to/backup"
-        includedev: # Only needs to be specified, when source is local storage which contains mounted devices
-          - "/mnt/mount/to/backup"
-    # encryption: 'pathphrase' # optional, omited by default
-    # cron_disabled: 'no' # optional, defaults to 'yes' (cron disabled)
-    # cron_minute: '05' # Optional, default to pbs_client_backups_default_cron_minute
-    # cron_hour: '*' # Optional, default to pbs_client_backups_default_cron_hour
-    # cron_day: '*' # Optional, default to pbs_client_backups_default_cron_day
-    # cron_weekday: '*' # Optional, default to pbs_client_backups_default_cron_weekday
-    # cron_month: '*' # Optional, default to pbs_client_backups_default_cron_month
-    # pbs_password: 'Password/API token' # optional
-    # pbs_user_string: 'backup@pbs!{{ inventory_hostname }}' # optional
-    # pbs_encryption_password: '' # optional
-    # pbs_encryption_keyfile: '' # optional
-    # pbs_pbs_server: 'pbs.mydomain.de' # optional
-    # pbs_pbs_server_port: '8007' # optional
-    # pbs_pbs_fingerprint: 'FINGERPRINT' # optional
-    # pbs_pbs_datastore: 'DATASTORE_NAME' # optional
-    # pbs_pbs_namespace: 'NAMESPACE_NAME' # optional
+# ---------------------------------------------------------------------------
+# Backup targets
+# ---------------------------------------------------------------------------
+# Default is empty on purpose: define the real targets in host_vars/group_vars.
+# The fully annotated example below shows every supported key. All `pbs_*` and
+# `cron_*` keys are OPTIONAL and fall back to the role defaults above; only
+# `name` and `source` are required.
+pbs_client_backups: []
+
+# pbs_client_backups:
+#   - name: "mybackup"                  # REQUIRED: PBS backup-id (PBS defaults this to the hostname)
+#     source:                           # REQUIRED: one or more archives
+#       - name: "backup"                #   archive name -> "<name>.pxar"
+#         path: "/opt/folder/to/backup" #   path to archive
+#         includedev:                   #   optional: extra mountpoints to descend into
+#           - "/mnt/mount/to/backup"
+#     # --- scheduling (optional, fall back to pbs_client_backups_default_cron_*) ---
+#     cron_disabled: 'no'               # 'no' = active, 'yes' = installed but disabled (default)
+#     cron_minute: '5'
+#     cron_hour: '*'
+#     cron_day: '*'
+#     cron_weekday: '*'
+#     cron_month: '*'
+#     # --- connection overrides (optional, fall back to role defaults) ---
+#     pbs_password: '{{ vault_pbs_password_myhost }}'
+#     pbs_user_string: 'backup@pbs!{{ inventory_hostname }}'
+#     pbs_pbs_server: '192.0.2.10'
+#     pbs_pbs_server_port: '8007'
+#     pbs_pbs_fingerprint: '{{ pbs_client_backups_pbs_fingerprint_bx123 }}'
+#     pbs_pbs_datastore: 'hetzner'
+#     pbs_pbs_namespace: 'other'
+#     # --- bandwidth limit (optional, HumanByte: 90MB = base-10, 90MiB = base-2) ---
+#     pbs_rate: '90MB'                  # sustained limit
+#     pbs_burst: '180MB'                # optional token-bucket size
+#     # --- client-side encryption (optional) ---
+#     pbs_encryption_password: '{{ vault_pbs_encryption_password_myhost }}'
+#     pbs_encryption_keyfile: '{{ inventory_hostname }}_encryption.key'
+#     # --- read-only mount helper (optional) ---
+#     mount_script: true                # deploy the *_mount.sh helper (default: pbs_client_backups_deploy_mount_script)
+#     pbs_mount_path: '/mnt/backup_hetzner_smybackup'  # default: <mount_base>_<datastore>_<name>

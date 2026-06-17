@@ -1,0 +1,21 @@
+---
+# Install one cron entry per backup target. Entries are created disabled unless
+# the target opts in with `cron_disabled: 'no'`. Full-filesystem backups need
+# root, hence the dedicated cron user (default: root).
+
+- name: "deploy backup cron jobs"
+  become: true
+  ansible.builtin.cron:
+    name: "pbs_backup_{{ item.name }}"
+    minute: "{{ item.cron_minute | default(pbs_client_backups_default_cron_minute) }}"
+    hour: "{{ item.cron_hour | default(pbs_client_backups_default_cron_hour) }}"
+    day: "{{ item.cron_day | default(pbs_client_backups_default_cron_day) }}"
+    weekday: "{{ item.cron_weekday | default(pbs_client_backups_default_cron_weekday) }}"
+    month: "{{ item.cron_month | default(pbs_client_backups_default_cron_month) }}"
+    user: "{{ pbs_client_backups_cron_user }}"
+    job: "{{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}_{{ item.name }}.sh --backup"
+    state: present
+    disabled: "{{ item.cron_disabled | default(pbs_client_backups_default_cron_disabled) }}"
+  loop: "{{ pbs_client_backups }}"
+  loop_control:
+    label: "{{ item.name }}"

@@ -1,0 +1,59 @@
+---
+# Fail fast with a clear message on malformed input instead of producing a
+# broken script or cron entry. These checks need no privileges (no become).
+
+- name: "assert pbs_client_backups is a list"
+  ansible.builtin.assert:
+    that:
+      - pbs_client_backups is defined
+      - pbs_client_backups is iterable
+      - pbs_client_backups is not string
+      - pbs_client_backups is not mapping
+    fail_msg: "'pbs_client_backups' must be a list of backup targets."
+    quiet: true
+
+- name: "assert every backup target has the required keys"
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name | length > 0
+      - item.source is defined
+      - item.source is iterable
+      - item.source is not string
+      - item.source is not mapping
+      - item.source | length > 0
+    fail_msg: >-
+      Each pbs_client_backups item needs a non-empty 'name' and a 'source' list.
+      Offending item: {{ item }}
+    quiet: true
+  loop: "{{ pbs_client_backups }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+
+- name: "assert every target resolves a non-empty PBS password / token"
+  ansible.builtin.assert:
+    that:
+      - (item.pbs_password | default(pbs_client_backups_pbs_password, true)) | length > 0
+    fail_msg: >-
+      Target '{{ item.name }}' resolves an empty PBS password/token. Set
+      'pbs_password' on the target or 'pbs_client_backups_pbs_password' as a
+      default (the '| mandatory' filter in the template does not catch '').
+    quiet: true
+  loop: "{{ pbs_client_backups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "assert every source has a name and a path"
+  ansible.builtin.assert:
+    that:
+      - item.1.name is defined
+      - item.1.name | length > 0
+      - item.1.path is defined
+      - item.1.path | length > 0
+    fail_msg: >-
+      Each source needs a non-empty 'name' and 'path'.
+      Offending source in target '{{ item.0.name }}': {{ item.1 }}
+    quiet: true
+  loop: "{{ pbs_client_backups | subelements('source') }}"
+  loop_control:
+    label: "{{ item.0.name }} / {{ item.1.name | default('<unnamed>') }}"

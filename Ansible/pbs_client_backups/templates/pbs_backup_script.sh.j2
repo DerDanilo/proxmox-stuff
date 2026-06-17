@@ -1,44 +1,68 @@
 #!/bin/bash
 {{ ansible_managed | comment }}
-
-{% if (item.pbs_encryption_password is defined and item.pbs_encryption_password|length > 0) %}
-# Using Backup Target specific encryption password
-export PBS_ENCRYPTION_PASSWORD='{{ item.pbs_encryption_password }}'
-{% endif %}
-{% if (item.pbs_encryption_password is not defined) and (pbs_client_backups_pbs_encryption_password is defined and pbs_client_backups_pbs_encryption_password|length >0) %}
-# Using global encryption password
-export PBS_ENCRYPTION_PASSWORD='{{ pbs_client_backups_pbs_encryption_password }}'
-{% endif %}
-
-{# --- PBS Server Handling --- #}
+#
+# Proxmox Backup *client* wrapper for backup target "{{ item.name }}".
+# Managed by the Ansible role "pbs_client_backups" - do not edit by hand.
+#
+# Run with "help" (or -h / --help) for usage.
+#
+{# ----------------------------------------------------------------------- #}
+{# Resolve all settings once: per-target key  ->  role default fallback.    #}
+{# Every value below is rendered through the `quote` filter so paths/values #}
+{# containing spaces or shell metacharacters cannot break or inject.        #}
+{# ----------------------------------------------------------------------- #}
 {% set server_host = item.pbs_pbs_server | default(pbs_client_backups_pbs_server, true) | mandatory %}
 {% set server_port = item.pbs_pbs_server_port | default(pbs_client_backups_pbs_server_port, true) | default('8007', true) %}
-{# Eckige Klammern bei IPv4/DNS entfernen #}
-{% set cleaned_host = server_host | regex_replace('^\\[|\\]$', '') %}
-{# Erkennung #}
-{% if cleaned_host | regex_search('^[0-9a-fA-F:]+$') and not cleaned_host | regex_search('\\.') %}
-  {# IPv6 -> einklammern #}
-  {% set PBS_SERVER = '[' ~ cleaned_host ~ ']:' ~ server_port %}
-{% elif cleaned_host | regex_search('^\\d+\\.\\d+\\.\\d+\\.\\d+$') %}
-  {# IPv4 -> einfach host:port #}
-  {% set PBS_SERVER = cleaned_host ~ ':' ~ server_port %}
+{% set ns = item.pbs_pbs_namespace | default(pbs_client_backups_pbs_namespace, true) %}
+{% set rate = item.pbs_rate | default(pbs_client_backups_pbs_rate, true) %}
+{% set burst = item.pbs_burst | default(pbs_client_backups_pbs_burst, true) %}
+{% set enc_pass = item.pbs_encryption_password | default(pbs_client_backups_pbs_encryption_password, true) %}
+{% if (item.pbs_encryption_keyfile is defined and item.pbs_encryption_keyfile | length > 0) %}
+{%   set keyfile = pbs_client_backups_keyfile_base ~ '_' ~ item.pbs_encryption_keyfile %}
+{% elif (pbs_client_backups_pbs_encryption_keyfile is defined and pbs_client_backups_pbs_encryption_keyfile | length > 0) %}
+{%   set keyfile = pbs_client_backups_keyfile_base ~ '_' ~ pbs_client_backups_pbs_encryption_keyfile %}
 {% else %}
-  {# DNS oder sonstiges -> ebenfalls host:port #}
-  {% set PBS_SERVER = cleaned_host ~ ':' ~ server_port %}
+{%   set keyfile = '' %}
+{% endif %}
+{# Build host:port. A colon can only appear in an IPv6 literal (DNS names    #}
+{# and IPv4 never contain one), so "contains a colon" is the bracket test.   #}
+{# Strip any brackets the user already added, then re-add them for IPv6.     #}
+{% set cleaned_host = server_host | regex_replace('^\\[|\\]$', '') %}
+{% if cleaned_host is search(':') %}
+{%   set pbs_server = '[' ~ cleaned_host ~ ']:' ~ server_port %}
+{% else %}
+{%   set pbs_server = cleaned_host ~ ':' ~ server_port %}
 {% endif %}
 
-export PBS_SERVER='{{ PBS_SERVER }}'
-
-export PBS_FINGERPRINT='{{ item.pbs_pbs_fingerprint | d(pbs_client_backups_pbs_fingerprint) }}'
-export PBS_PASSWORD='{{ item.pbs_password | default(pbs_client_backups_pbs_password, true) | mandatory }}'
-export PBS_USER_STRING='{{ item.pbs_user_string | default(pbs_client_backups_pbs_user_string, true) | mandatory }}'
-export PBS_DATASTORE='{{ item.pbs_pbs_datastore | default(pbs_client_backups_pbs_datastore, true) | mandatory }}'
+{% if enc_pass %}
+# Client-side encryption passphrase
+export PBS_ENCRYPTION_PASSWORD={{ enc_pass | quote }}
+{% endif %}
+export PBS_SERVER={{ pbs_server | quote }}
+export PBS_FINGERPRINT={{ item.pbs_pbs_fingerprint | default(pbs_client_backups_pbs_fingerprint, true) | quote }}
+export PBS_PASSWORD={{ item.pbs_password | default(pbs_client_backups_pbs_password, true) | mandatory | quote }}
+export PBS_USER_STRING={{ item.pbs_user_string | default(pbs_client_backups_pbs_user_string, true) | mandatory | quote }}
+export PBS_DATASTORE={{ item.pbs_pbs_datastore | default(pbs_client_backups_pbs_datastore, true) | mandatory | quote }}
 export PBS_REPOSITORY="${PBS_USER_STRING}@${PBS_SERVER}:${PBS_DATASTORE}"
 
-{# Set namespace if specified #}
-{% set ns = item.pbs_pbs_namespace | default(pbs_client_Backups_pbs_namespace, true) %}
+usage() {
+    local me; me="$(basename -- "$0")"
+    echo "Proxmox Backup client wrapper for \"{{ item.name }}\"."
+    echo
+    echo "Usage: $me [COMMAND]"
+    echo
+    echo "Commands:"
+    printf '  %-10s %s\n' "(none)"   "List existing backups for this target, then exit."
+    printf '  %-10s %s\n' "--backup" "Run the backup, then list the snapshots. (alias: -b)"
+    printf '  %-10s %s\n' "help"     "Show this help. (aliases: -h, --help)"
+}
 
-{# --- Info Summary --- #}
+# Show help and exit before printing the connection summary.
+case "${1:-}" in
+    -h|--help|help) usage; exit 0 ;;
+esac
+
+# --- Configuration summary -------------------------------------------------
 echo "---------------------------------------"
 echo " Proxmox Backup Configuration Summary"
 echo "---------------------------------------"
@@ -47,29 +71,63 @@ echo "PBS User:       ${PBS_USER_STRING}"
 echo "PBS Server:     ${PBS_SERVER}"
 echo "PBS Port:       {{ server_port }}"
 echo "PBS Datastore:  ${PBS_DATASTORE}"
-{% if ns %}
-echo "PBS Namespace:  {{ ns }}"
-{% else %}
-echo "PBS Namespace:  (none set)"
-{% endif %}
+echo "PBS Namespace:  {{ ns if ns else '(none set)' }}"
+echo "Rate limit:     {{ rate if rate else '(unlimited)' }}{% if rate and burst %} (burst {{ burst }}){% endif %}"
+echo "Encryption:     {% if keyfile %}keyfile ({{ keyfile }}){% elif enc_pass %}passphrase{% else %}none{% endif %}"
+
 echo "---------------------------------------"
 echo "Configuration loaded successfully."
 
 if [ $# -le 0 ]; then
     printf "# List backups and exit.\n"
     printf "***************************\n"
-    proxmox-backup-client list{% if ns %} --ns "{{ ns }}" {%- endif %}  
+    proxmox-backup-client list{% if ns %} --ns {{ ns | quote }}{% endif %} || true
     exit 0
 fi
 
-if [[ "$*" == *-backup* ]] || [[ "$*" == *-b* ]]; then
-printf "Create PBS backup with BACKUP-ID:{{ item.name }} of \n{% for source in item.source %}- {{ source.path }} to {{ source.name }}.pxar\n{% endfor -%}...\n"
-printf "***************************\n"
-proxmox-backup-client list{% if ns %} --ns "{{ ns }}" {%- endif %}  
-printf "***************************\n"
-proxmox-backup-client backup {% for source in item.source %} {{ source.name }}.pxar:"{{ source.path }}"{% if (source.includedev is defined and source.includedev|length > 0) %}{% for device_path in source.includedev %} --include-dev "{{ device_path }}"{% endfor %}{% endif %}{% endfor %} --backup-id "{{ item.name }}" --skip-lost-and-found{% if (item.pbs_encryption_keyfile is defined and item.pbs_encryption_keyfile|length > 0) %} --keyfile "{{ pbs_client_backups_keyfile_base }}_{{ item.pbs_encryption_keyfile }}"{% endif %}{% if (item.pbs_encryption_keyfile is not defined) and (pbs_client_backups_pbs_encryption_keyfile is defined and pbs_client_backups_pbs_encryption_keyfile|length > 0) %} --keyfile "{{ pbs_client_backups_keyfile_base }}_{{ pbs_client_backups_pbs_encryption_keyfile }}"{% endif %}{% if ns %} --ns "{{ ns }}" {%- endif %}  
+# Only an explicit --backup (or -b) triggers a real, data-writing backup.
+# Anything else falls through to a usage error rather than backing up silently.
+if [ "$1" = "--backup" ] || [ "$1" = "-b" ]; then
+    printf "Create PBS backup with BACKUP-ID:{{ item.name }} of \n{% for source in item.source %}- {{ source.path }} to {{ source.name }}.pxar\n{% endfor -%}...\n"
+    printf "***************************\n"
+    proxmox-backup-client list{% if ns %} --ns {{ ns | quote }}{% endif %} || true
+    printf "***************************\n"
 
-proxmox-backup-client list{% if ns %} --ns "{{ ns }}" {%- endif %}  
-printf "***************************\n"
-echo "Done."
+    # Time the backup ourselves (wall clock). Computing the duration from epoch
+    # seconds is correct regardless of the PBS client's output format or time
+    # zone (the client mixes a UTC snapshot stamp with a local end time).
+    __pbs_start=$(date +%s)
+    __pbs_start_str=$(date '+%Y-%m-%d %H:%M:%S %Z')
+    proxmox-backup-client backup{% for source in item.source %} {{ source.name }}.pxar:{{ source.path | quote }}{% if (source.includedev is defined and source.includedev | length > 0) %}{% for device_path in source.includedev %} --include-dev {{ device_path | quote }}{% endfor %}{% endif %}{% endfor %} --backup-id {{ item.name | quote }} --skip-lost-and-found{% if keyfile %} --keyfile {{ keyfile | quote }}{% endif %}{% if ns %} --ns {{ ns | quote }}{% endif %}{% if rate %} --rate {{ rate | quote }}{% if burst %} --burst {{ burst | quote }}{% endif %}{% endif %}
+
+    # Exit code of the backup command above. (The blank line is required: Jinja
+    # trim_blocks strips the newline after the closing %}; $? survives a blank
+    # line / comment, so this still reflects the backup command's result.)
+    __pbs_rc=$?
+    __pbs_end=$(date +%s)
+    __pbs_end_str=$(date '+%Y-%m-%d %H:%M:%S %Z')
+
+    # Break the elapsed seconds into days / hours / minutes / seconds.
+    __pbs_elapsed=$(( __pbs_end - __pbs_start ))
+    __pbs_days=$(( __pbs_elapsed / 86400 ))
+    __pbs_hours=$(( (__pbs_elapsed % 86400) / 3600 ))
+    __pbs_mins=$(( (__pbs_elapsed % 3600) / 60 ))
+    __pbs_secs=$(( __pbs_elapsed % 60 ))
+
+    proxmox-backup-client list{% if ns %} --ns {{ ns | quote }}{% endif %} || true
+    printf "***************************\n"
+    echo "Backup started:  ${__pbs_start_str}"
+    echo "Backup finished: ${__pbs_end_str}"
+    printf 'Backup duration: %dd %02dh %02dm %02ds (%ds total)\n' "${__pbs_days}" "${__pbs_hours}" "${__pbs_mins}" "${__pbs_secs}" "${__pbs_elapsed}"
+    if [ "${__pbs_rc}" -eq 0 ]; then
+        echo "Result: SUCCESS (exit code ${__pbs_rc})."
+    else
+        echo "Result: FAILED (exit code ${__pbs_rc})." >&2
+    fi
+    exit "${__pbs_rc}"
+else
+    echo "Unknown argument: $1" >&2
+    echo >&2
+    usage >&2
+    exit 2
 fi

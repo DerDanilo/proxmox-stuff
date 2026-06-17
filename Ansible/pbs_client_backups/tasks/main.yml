@@ -1,84 +1,31 @@
 ---
-- name: "Create script directory"
-  become: yes
-  file:
-    path: "{{ pbs_client_backups_script_path }}"
-    state: directory
-    owner: "{{ pbs_client_backups_script_owner }}"
-    group: "{{ pbs_client_backups_script_owner }}"
-    mode: 0755
-  tags: ["pbs_client_backups"]
+# Orchestrator for the pbs_client_backups role.
+#
+# Task names intentionally carry NO role-name prefix; the role name is applied
+# as a tag here at the import_tasks level. Static imports propagate their tags
+# to every imported task, so `--tags pbs_client_backups` selects the whole role
+# while the finer phase tags select a single phase.
 
-- name: "Deploy pbs_client_backup scripts"
-  become: yes
-  template:
-    src: "pbs_backup_script.sh.j2"
-    dest: "{{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}_{{ item.name }}.sh"
-    owner: "{{ pbs_client_backups_script_owner }}"
-    group: "{{ pbs_client_backups_script_owner }}"
-    mode: "a+x"
-  loop: "{{ pbs_client_backups }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when: 
-    - pbs_client_backups is defined
-    - pbs_client_backups|length > 0
-  tags: ["pbs_client_backups"]
+- name: "validate backup target definitions"
+  ansible.builtin.import_tasks: validate.yml
+  tags: ["pbs_client_backups", "pbs_client_backups_validate"]
 
-- name: "Deploy global pbs encryption key files"
-  become: yes
-  copy: 
-    src: "{{ pbs_client_backups_pbs_encryption_keyfile_source_base_path }}/{{ pbs_client_backups_pbs_encryption_keyfile }}.vault"
-    dest: "{{ pbs_client_backups_keyfile_base }}_{{ pbs_client_backups_pbs_encryption_keyfile }}"
-    decrypt: yes
-  when: 
-    - pbs_client_backups_pbs_encryption_keyfile is defined
-    - pbs_client_backups_pbs_encryption_keyfile|length > 0
-  tags: ["pbs_client_backups"]
+- name: "deploy backup scripts and encryption keys"
+  ansible.builtin.import_tasks: deploy.yml
+  tags: ["pbs_client_backups", "pbs_client_backups_deploy"]
 
-- name: "Deploy pbs encryption key files"
-  become: yes
-  copy: 
-    src: "{{ pbs_client_backups_pbs_encryption_keyfile_source_base_path }}/{{ item.pbs_encryption_keyfile }}.vault"
-    dest: "{{ pbs_client_backups_keyfile_base }}_{{ item.pbs_encryption_keyfile }}"
-    decrypt: yes
-  loop: "{{ pbs_client_backups }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when: 
-    - pbs_client_backups is defined
-    - pbs_client_backups|length > 0
-    - item.pbs_encryption_keyfile is defined
-    - item.pbs_encryption_keyfile|length > 0
-  tags: ["pbs_client_backups"]
+- name: "run post-deploy connectivity test"
+  ansible.builtin.import_tasks: test.yml
+  when: pbs_client_backups_test_script | bool
+  tags: ["pbs_client_backups", "pbs_client_backups_test"]
 
-- include_tasks: test_script.yml
-  loop: "{{ pbs_client_backups }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when: 
-    - pbs_client_backups_test_script|bool
-    - pbs_client_backups is defined
-    - pbs_client_backups|length > 0
-  tags: ["pbs_client_backups"]
+- name: "deploy backup cron jobs"
+  ansible.builtin.import_tasks: cron.yml
+  tags: ["pbs_client_backups", "pbs_client_backups_cron"]
 
-- name: "Deploy cron job(s)"
-  become: yes
-  cron:
-    name: "pbs_backup_{{ item.name }}"
-    minute: "{{ item.cron_minute | d(pbs_client_backups_default_cron_minute) }}"
-    hour: "{{ item.cron_hour | d(pbs_client_backups_default_cron_hour) }}"
-    day: "{{ item.cron_day | d(pbs_client_backups_default_cron_day) }}"
-    weekday: "{{ item.cron_weekday | d(pbs_client_backups_default_cron_weekday) }}"
-    month: "{{ item.cron_month | d(pbs_client_backups_default_cron_month) }}"
-    user: "root"
-    job: "{{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}_{{ item.name }}.sh --backup"
-    state: present
-    disabled: "{{ item.cron_disabled | default(pbs_client_backups_default_cron_disabled) }}"
-  loop: "{{ pbs_client_backups }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when: 
-    - pbs_client_backups is defined
-    - pbs_client_backups|length > 0
-  tags: ["pbs_client_backups"]
+- name: "prune artifacts of removed targets"
+  ansible.builtin.import_tasks: prune.yml
+  when:
+    - pbs_client_backups_prune | bool
+    - pbs_client_backups | length > 0
+  tags: ["pbs_client_backups", "pbs_client_backups_prune"]

@@ -1,0 +1,63 @@
+---
+# Opt-in reconciliation (pbs_client_backups_prune=true): remove wrapper scripts
+# and cron entries for targets that are NO LONGER in pbs_client_backups (e.g.
+# after a rename or removal). The import is guarded so an empty/undefined list
+# can never trigger mass deletion. Encryption key files are intentionally NOT
+# pruned: they may be shared between targets or global, and an orphaned key is
+# harmless (it carries no PBS token).
+
+- name: "compute desired script and cron names"
+  ansible.builtin.set_fact:
+    # Keep both the backup script and the mount helper for every current target.
+    __pbs_desired_scripts: >-
+      {{ (pbs_client_backups | map(attribute='name')
+          | map('regex_replace', '^', pbs_client_backups_script_base ~ '_')
+          | map('regex_replace', '$', '.sh') | list)
+         + (pbs_client_backups | map(attribute='name')
+          | map('regex_replace', '^', pbs_client_backups_script_base ~ '_')
+          | map('regex_replace', '$', '_mount.sh') | list) }}
+    __pbs_desired_cron: >-
+      {{ pbs_client_backups | map(attribute='name')
+         | map('regex_replace', '^', 'pbs_backup_') | list }}
+
+- name: "find existing backup scripts"
+  become: true
+  ansible.builtin.find:
+    paths: "{{ pbs_client_backups_script_path }}"
+    patterns: "{{ pbs_client_backups_script_base }}_*.sh"
+    file_type: file
+  register: __pbs_existing_scripts
+
+- name: "remove orphaned backup scripts"
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ __pbs_existing_scripts.files | map(attribute='path') | list }}"
+  loop_control:
+    label: "{{ item | basename }}"
+  when: (item | basename) not in __pbs_desired_scripts
+
+# The cron module cannot enumerate entries, so read the crontab and parse the
+# "#Ansible: <name>" markers it writes (present even for disabled entries).
+- name: "read existing cron entries"
+  become: true
+  ansible.builtin.command:
+    cmd: "crontab -l -u {{ pbs_client_backups_cron_user }}"
+  register: __pbs_crontab
+  changed_when: false
+  failed_when: false
+
+- name: "remove orphaned backup cron entries"
+  become: true
+  ansible.builtin.cron:
+    name: "{{ item }}"
+    user: "{{ pbs_client_backups_cron_user }}"
+    state: absent
+  loop: >-
+    {{ __pbs_crontab.stdout_lines | default([])
+       | select('match', '^#Ansible: pbs_backup_')
+       | map('regex_replace', '^#Ansible: (pbs_backup_.*)$', '\1')
+       | reject('in', __pbs_desired_cron) | list }}
+  loop_control:
+    label: "{{ item }}"

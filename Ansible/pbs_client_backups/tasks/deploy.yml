@@ -1,0 +1,81 @@
+---
+# Deploy the wrapper scripts and (optional) encryption key files. Everything
+# here writes secrets to disk, so it runs with become and root-only modes.
+
+- name: "create backup script directory"
+  become: true
+  ansible.builtin.file:
+    path: "{{ pbs_client_backups_script_path }}"
+    state: directory
+    owner: "{{ pbs_client_backups_script_owner }}"
+    group: "{{ pbs_client_backups_script_owner }}"
+    mode: "{{ pbs_client_backups_script_dir_mode }}"
+  when: pbs_client_backups | length > 0
+
+- name: "deploy backup wrapper scripts"
+  become: true
+  ansible.builtin.template:
+    src: "pbs_backup_script.sh.j2"
+    dest: "{{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}_{{ item.name }}.sh"
+    owner: "{{ pbs_client_backups_script_owner }}"
+    group: "{{ pbs_client_backups_script_owner }}"
+    mode: "{{ pbs_client_backups_script_mode }}"
+  # The rendered script embeds the PBS token (and optional passphrase). Without
+  # no_log a --diff run would print those secrets to stdout and ansible.log.
+  no_log: true
+  loop: "{{ pbs_client_backups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# Read-only mount helper, deployed next to each backup script (default on; per
+# target opt-out with `mount_script: false`). Embeds the PBS token like the
+# backup script, hence the same root-only mode and no_log.
+- name: "deploy read-only mount helper scripts"
+  become: true
+  ansible.builtin.template:
+    src: "pbs_mount_script.sh.j2"
+    dest: "{{ pbs_client_backups_script_path }}/{{ pbs_client_backups_script_base }}_{{ item.name }}_mount.sh"
+    owner: "{{ pbs_client_backups_script_owner }}"
+    group: "{{ pbs_client_backups_script_owner }}"
+    mode: "{{ pbs_client_backups_script_mode }}"
+  no_log: true
+  loop: "{{ pbs_client_backups }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.mount_script | default(pbs_client_backups_deploy_mount_script) | bool
+
+# Global key file: used by every target that does not set its own
+# `pbs_encryption_keyfile`. The ".vault" source is decrypted on copy.
+- name: "deploy global encryption key file"
+  become: true
+  ansible.builtin.copy:
+    src: "{{ pbs_client_backups_pbs_encryption_keyfile_source_base_path }}/{{ pbs_client_backups_pbs_encryption_keyfile }}.vault"
+    dest: "{{ pbs_client_backups_keyfile_base }}_{{ pbs_client_backups_pbs_encryption_keyfile }}"
+    owner: "{{ pbs_client_backups_script_owner }}"
+    group: "{{ pbs_client_backups_script_owner }}"
+    mode: "{{ pbs_client_backups_keyfile_mode }}"
+    # copy auto-decrypts Ansible-Vault-encrypted source files (decrypt=true is
+    # the module default), so the ".vault" key is written out in cleartext.
+  no_log: true
+  when:
+    - pbs_client_backups | length > 0
+    - pbs_client_backups_pbs_encryption_keyfile | length > 0
+
+# Per-target key files: only for targets that explicitly set one.
+- name: "deploy per-target encryption key files"
+  become: true
+  ansible.builtin.copy:
+    src: "{{ pbs_client_backups_pbs_encryption_keyfile_source_base_path }}/{{ item.pbs_encryption_keyfile }}.vault"
+    dest: "{{ pbs_client_backups_keyfile_base }}_{{ item.pbs_encryption_keyfile }}"
+    owner: "{{ pbs_client_backups_script_owner }}"
+    group: "{{ pbs_client_backups_script_owner }}"
+    mode: "{{ pbs_client_backups_keyfile_mode }}"
+    # copy auto-decrypts Ansible-Vault-encrypted source files (decrypt=true is
+    # the module default), so the ".vault" key is written out in cleartext.
+  no_log: true
+  loop: "{{ pbs_client_backups }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.pbs_encryption_keyfile is defined
+    - item.pbs_encryption_keyfile | length > 0
