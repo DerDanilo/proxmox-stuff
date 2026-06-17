@@ -1,22 +1,144 @@
 ---
-pmg_domain_mgmt_script_owner: "root"
+# ============================================================================
+# pmg_domain_mgmt - Role Defaults
+# ============================================================================
+# Every overridable variable is prefixed with the role name `pmg_domain_mgmt_`.
+# Optional alternatives are shown as commented examples right next to the
+# default so you can see every possibility without leaving this file.
+#
+# What this role does: deploy a self-contained bash management script (plus a
+# root-only credentials file) onto a host so that host can create / update /
+# delete relay domains, their transport map entry and DKIM signing on a remote
+# Proxmox Mail Gateway via the PMG REST API. The host running the script does
+# NOT have to be a PMG itself — it can be any automation host that can reach the
+# PMG API.
+# ============================================================================
+
+
+# ---------------------------------------------------------------------------
+# PMG API connection  (rendered into the root-only credentials file)
+# ---------------------------------------------------------------------------
+# Base URL of the PMG API, including scheme and port. PMG's API/GUI listens on
+# 8006 by default. Point this at the PMG *master* node.
+pmg_domain_mgmt_host: "https://pmg.example.com:8006"
+
+# API user, split into user + realm. PMG realms are typically:
+#   pmg  -> PMG-internal users (recommended for an API/automation account)
+#   pam  -> Linux/PAM users (e.g. root@pam)
+pmg_domain_mgmt_prox_username: "apiuser"
+pmg_domain_mgmt_prox_username_realm: "pmg"
+pmg_domain_mgmt_prox_username_full: "{{ pmg_domain_mgmt_prox_username }}@{{ pmg_domain_mgmt_prox_username_realm }}"
+
+# API password. ALWAYS reference it from Vault, never put a literal here:
+#   pmg_domain_mgmt_password: "{{ vault_pmg_domain_mgmt_password }}"
+pmg_domain_mgmt_password: "{{ vault_pmg_domain_mgmt_password }}"
+
+# Verify the PMG TLS certificate when the script talks to the API.
+#   false -> skip verification (curl -k). Correct for a stock, self-signed PMG.
+#   true  -> verify against the system trust store. Use this once the PMG has a
+#            trusted certificate (e.g. ACME / Let's Encrypt).
+pmg_domain_mgmt_tls_verify: false
+#   pmg_domain_mgmt_tls_verify: true
+
+
+# ---------------------------------------------------------------------------
+# Script behaviour defaults  (baked into the credentials file as fallbacks)
+# ---------------------------------------------------------------------------
+# Command used when the script is invoked without -C/--command. Keep this on
+# the read-only 'get' so an accidental argument-less call changes nothing.
+#   get (recommended) | add | update | delete
+pmg_domain_mgmt_default_command: "get"
+
+# Seconds the script waits before re-reading state to verify a change. PMG runs
+# postmap asynchronously, so a small delay avoids false "not applied" results.
+# Set to 0 to skip the verification wait entirely.
+pmg_domain_mgmt_sleep_length: 3
+
+# Transport-map defaults, used whenever the script is called without -p/-P/-m.
+# Match the PMG API defaults so behaviour is predictable.
+pmg_domain_mgmt_transport_port: 25
+#   pmg_domain_mgmt_transport_port: 2525
+pmg_domain_mgmt_transport_protocol: "smtp"     # smtp | lmtp
+#   pmg_domain_mgmt_transport_protocol: "lmtp"
+pmg_domain_mgmt_transport_use_mx: 0            # 0 = off (use host directly), 1 = MX lookup
+#   pmg_domain_mgmt_transport_use_mx: 1
+
+
+# ---------------------------------------------------------------------------
+# Post-deploy self-test  (OPT-IN, default OFF)
+# ---------------------------------------------------------------------------
+# When enabled the role runs the freshly deployed script once, read-only, to
+# confirm it can reach and authenticate against the PMG. It uses the 'get'
+# command, so it NEVER creates or changes anything on the PMG.
+#   pmg_domain_mgmt_selftest: true
+pmg_domain_mgmt_selftest: false
+
+# Domain queried by the self-test. Any syntactically valid domain works; it does
+# not need to exist on the PMG (a "not found" result still proves connectivity).
+pmg_domain_mgmt_selftest_domain: "example.com"
+
+
+# ---------------------------------------------------------------------------
+# On-host layout  (where the script + credentials file land)
+# ---------------------------------------------------------------------------
+# Directory and filename of the management script.
 pmg_domain_mgmt_script_path: "/opt"
 pmg_domain_mgmt_script: "pmg_domain_mgmt.sh"
 pmg_domain_mgmt_script_path_full: "{{ pmg_domain_mgmt_script_path }}/{{ pmg_domain_mgmt_script }}"
 
-# Create user on PMG server
-pmg_domain_mgmt_create_user: False
+# Directory and path of the root-only credentials/config file the script sources.
+pmg_domain_mgmt_config_dir: "/etc/pmg-domain-mgmt"
+pmg_domain_mgmt_config_file: "{{ pmg_domain_mgmt_config_dir }}/pmg-domain-mgmt.conf"
 
-pmg_domain_mgmt_prox_username: "apiuser"
-pmg_domain_mgmt_prox_username_realm: "pmg"
-pmg_domain_mgmt_prox_username_full: "{{ pmg_domain_mgmt_prox_username }}@{{ pmg_domain_mgmt_prox_username_realm }}"
-pmg_domain_mgmt_password: "{{ vault_pmg_domain_mgmt_password }}"
-pmg_domain_mgmt_host: "https://pmg.mydomain.de:8006"
-# get, add, update, delete (not recommended as default command)
-pmg_domain_mgmt_default_command: "get"
-pmg_domain_mgmt_sleep_lenght: 3
+# Ownership / permissions.
+#   - The script holds no secrets, so it is world-readable + executable (0755).
+#   - The config file holds the password, so it is locked to the owner (0600).
+# `owner` is who may read the secret and run the script without sudo. Default
+# root (invoke via sudo); set it to an existing automation user to run as that
+# user instead, e.g.:
+#   pmg_domain_mgmt_owner: "automation"
+pmg_domain_mgmt_owner: "root"
+pmg_domain_mgmt_group: "{{ pmg_domain_mgmt_owner }}"
+pmg_domain_mgmt_script_mode: "0755"
+pmg_domain_mgmt_config_mode: "0600"
 
-pmg_domain_mgmt_delegate_host: "mx1"
 
-pmg_domain_mgmt_apt_packages:
-  - 'curl'
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
+# Packages the script needs on the host it runs on: curl (HTTP) + jq (JSON).
+pmg_domain_mgmt_packages:
+  - curl
+  - jq
+
+
+# ---------------------------------------------------------------------------
+# Optional: bootstrap the API user on the PMG  (OPT-IN, default OFF)
+# ---------------------------------------------------------------------------
+# When enabled, the role creates/updates the API user defined above on a PMG
+# node using the local `pmgsh` CLI (which authenticates as root@pam, so no API
+# password is needed to bootstrap). Two ways to use it:
+#
+#   1) Run the role directly against a PMG (the play targets the PMG over SSH).
+#      With the default below the user is created on that same host — nothing
+#      else to set. To create ONLY the user (and skip the script deploy), limit
+#      the run to the phase tag:
+#        ansible-playbook ... -l <pmg> --tags pmg_domain_mgmt_user
+#
+#   2) Run the role against a separate automation host and DELEGATE the user
+#      creation to a PMG node — set pmg_domain_mgmt_create_user_host to that
+#      PMG's inventory name (see below).
+pmg_domain_mgmt_create_user: false
+#   pmg_domain_mgmt_create_user: true
+
+# PMG node the `pmgsh` user-bootstrap commands run on. Defaults to the host the
+# play targets (case 1: running the role directly against the PMG). Override it
+# to delegate from an automation host to a remote PMG (case 2), e.g.:
+#   pmg_domain_mgmt_create_user_host: "pmg1"
+pmg_domain_mgmt_create_user_host: "{{ inventory_hostname }}"
+
+# Role assigned to the bootstrapped user. 'admin' is needed to manage domains
+# (the domain/transport/DKIM endpoints require the 'admin' role; 'audit' is
+# read-only). See the PMG docs for the full role list.
+#   admin | audit | qmanager | quser
+pmg_domain_mgmt_create_user_role: "admin"

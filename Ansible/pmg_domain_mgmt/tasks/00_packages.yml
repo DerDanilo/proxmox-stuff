@@ -1,0 +1,12 @@
+---
+# The management script needs curl (HTTP) and jq (robust JSON parsing) on the
+# host it runs on. `state: present` keeps this idempotent (no needless upgrades);
+# bump packages via your normal patching, not this role.
+- name: pmg_domain_mgmt | Install required packages
+  become: true
+  ansible.builtin.package:
+    name: "{{ pmg_domain_mgmt_packages }}"
+    state: present
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_packages

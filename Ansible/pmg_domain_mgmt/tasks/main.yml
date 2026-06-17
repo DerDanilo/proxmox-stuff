@@ -1,89 +1,39 @@
 ---
-- debug:
-    msg: "Installing package dependencies, this may take a while..."
-  tags: ["pmg_domain_mgmt"]
+# ============================================================================
+# pmg_domain_mgmt - main entry
+# ============================================================================
+# Order:
+#   00 packages   curl + jq on the host that will run the script
+#   10 api_user   OPT-IN: bootstrap the API user on a PMG node via pmgsh
+#   20 deploy     credentials file (0600) + the management script (0755)
+#   30 selftest   OPT-IN: read-only connectivity check of the deployed script
+#
+# Every task is tagged `pmg_domain_mgmt` plus a phase tag, so you can run a
+# slice, e.g.:  ansible-playbook ... --tags pmg_domain_mgmt_deploy
+# ============================================================================
 
-- name: "Install dependencies"
-  become: yes
-  package:
-    name: "{{ pmg_domain_mgmt_apt_packages }}"
-    update_cache: yes
-    state: latest
-  tags: ["pmg_domain_mgmt"]
+- name: pmg_domain_mgmt | Install required packages (curl, jq)
+  ansible.builtin.import_tasks: 00_packages.yml
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_packages
 
-- name: "Get PMG user"
-  become: yes
-  ignore_errors: True # We can ignore errors since we are working with whatever the output is.
-  shell: "pmgsh get /access/users"
-  register: __pmg_get_output
-  delegate_to: "{{ pmg_domain_mgmt_delegate_host }}"
-  when: 
-    - pmg_domain_mgmt_create_user|bool
-  tags: ["pmg_domain_mgmt"]
+- name: pmg_domain_mgmt | Bootstrap the API user on the PMG (opt-in)
+  ansible.builtin.import_tasks: 10_api_user.yml
+  when: pmg_domain_mgmt_create_user | bool
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_user
 
-- debug:
-    var: __pmg_get_output.stdout_lines
-  when: 
-    - pmg_domain_mgmt_create_user|bool
-    - __pmg_get_output.rc != 0
-  tags: ["pmg_domain_mgmt"]
+- name: pmg_domain_mgmt | Deploy credentials file and management script
+  ansible.builtin.import_tasks: 20_deploy.yml
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_deploy
 
-- name: "Add PMG user"
-  become: yes
-  shell: "pmgsh create /access/users --enable true --role admin --userid {{ pmg_domain_mgmt_prox_username_full }} --crypt_pass $(mkpasswd -m sha-256 {{ pmg_domain_mgmt_password }})"
-  register: __pmg_output
-  delegate_to: "{{ pmg_domain_mgmt_delegate_host }}"
-  when: 
-    - pmg_domain_mgmt_create_user|bool
-    - __pmg_get_output.stdout_lines is not search(pmg_domain_mgmt_prox_username_full)
-  tags: ["pmg_domain_mgmt"]
-
-- name: "Update PMG user"
-  become: yes
-  shell: "pmgsh set /access/users/{{ pmg_domain_mgmt_prox_username_full }} --enable true --role admin --crypt_pass $(mkpasswd -m sha-256 {{ pmg_domain_mgmt_password }})"
-  register: __pmg_output
-  delegate_to: "{{ pmg_domain_mgmt_delegate_host }}"
-  when: 
-    - pmg_domain_mgmt_create_user|bool
-    - __pmg_get_output.stdout_lines is search(pmg_domain_mgmt_prox_username_full)
-  tags: ["pmg_domain_mgmt"]
-
-- debug:
-    var: __pmg_output.stdout_lines
-  when: 
-    - pmg_domain_mgmt_create_user|bool
-    - __pmg_output.rc != 0
-  tags: ["pmg_domain_mgmt"]
-
-- name: "Create script directory"
-  become: yes
-  file:
-    path: "{{ pmg_domain_mgmt_script_path }}"
-    state: directory
-    owner: "{{ pmg_domain_mgmt_script_owner }}"
-    group: "{{ pmg_domain_mgmt_script_owner }}"
-    mode: 0755
-  tags: ["pmg_domain_mgmt"]
-
-- name: "Deploy {{ pmg_domain_mgmt_script }}"
-  become: yes
-  template:
-    src: "{{ pmg_domain_mgmt_script }}.j2"
-    dest: "{{ pmg_domain_mgmt_script_path_full }}"
-    owner: "{{ pmg_domain_mgmt_script_owner }}"
-    group: "{{ pmg_domain_mgmt_script_owner }}"
-    mode: "a+x"
-  tags: ["pmg_domain_mgmt"]
-
-- name: "Test script"
-  become: yes
-  ignore_errors: True # We can ignore errors since we only want to show if the script worked or not.
-  shell: 'bash {{ pmg_domain_mgmt_script_path_full }} -C update -d scripttest.local -c "Script test"'
-  register: __pmg_test_output
-  tags: ["pmg_domain_mgmt"]
-
-- debug:
-    var: __pmg_test_output.stdout_lines
-  tags: ["pmg_domain_mgmt"]
-
-
+- name: pmg_domain_mgmt | Read-only self-test of the deployed script (opt-in)
+  ansible.builtin.import_tasks: 30_selftest.yml
+  when: pmg_domain_mgmt_selftest | bool
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_selftest

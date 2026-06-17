@@ -1,0 +1,31 @@
+---
+galaxy_info:
+  role_name: pmg_domain_mgmt
+  author: DerDanilo
+  description: >
+    Deploy a self-contained bash management script (plus a root-only
+    credentials file) that creates, updates and deletes Proxmox Mail Gateway
+    relay domains, their transport map entry and DKIM signing through the PMG
+    REST API. The host running the script does not have to be a PMG itself.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+        - trixie
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+        - noble
+  galaxy_tags:
+    - proxmox
+    - pmg
+    - mail
+    - mailgateway
+    - domains
+    - dkim
+
+dependencies: []

@@ -1,644 +1,473 @@
-#!/bin/bash
-printf "# ProxmoxMailGateway Domain Management Script\n"
-## Info
-# - If COMMENT is omited and update command is send, existing comments will be removed!
-# - No Error handling for connection issues, script will most likely fail in this case.
+#!/usr/bin/env bash
+# shellcheck disable=SC1090
+# =============================================================================
+# {{ pmg_domain_mgmt_script }} — Proxmox Mail Gateway domain management
+# -----------------------------------------------------------------------------
+# Managed by Ansible (role: pmg_domain_mgmt). Local edits will be overwritten.
+#
+# Talks to the PMG REST API to manage, for a single relay domain:
+#   * the relay domain entry itself     (/config/domains)
+#   * its transport map entry           (/config/transport)   -- optional (-t)
+#   * its DKIM signing entry            (/config/dkim/domains) -- optional (-k)
+#
+# The script contains NO secrets. Connection details and credentials are read
+# from a separate, root-only config file (see CONFIG_FILE below), or from the
+# environment when that file is absent. PMG has no API tokens for the config
+# API, so authentication uses the classic ticket flow (POST username+password
+# to /access/ticket, then send the ticket cookie + CSRF header on writes).
+#
+# Exit codes: 0 = success / desired state reached, 1 = error.
+# =============================================================================
 
-# TODO's
-# Check how to use API token instead!
-# Check for curl server status code in every command in general. Should be '200'
+set -uo pipefail
 
-# Variables
-PROX_USERNAME={{ pmg_domain_mgmt_prox_username_full }}
-PROX_PASSWORD={{ pmg_domain_mgmt_password }}
-HOST={{ pmg_domain_mgmt_host }}
-DEFAULT_COMMAND="{{ pmg_domain_mgmt_default_command|lower }}"
-SLEEP_LENGTH="{{ pmg_domain_mgmt_sleep_lenght }}"
+# -----------------------------------------------------------------------------
+# Built-in defaults (non-secret). Overridden by the config file / environment.
+# -----------------------------------------------------------------------------
+CONFIG_FILE="${PMG_CONFIG:-{{ pmg_domain_mgmt_config_file }}}"
 
-# Functions
-verboseoutput(){
-if [[ "$DEBUG" == "true" ]]; then
-    #printf "\n"
-    printf "$1\n"
-    #printf "\n"
-fi
-}
+PMG_HOST="${PMG_HOST:-}"
+PMG_USERNAME="${PMG_USERNAME:-}"
+PMG_PASSWORD="${PMG_PASSWORD:-}"
+# Verify the PMG TLS certificate (true) or skip verification (false, e.g. for a
+# self-signed PMG cert). Kept configurable on purpose — never hard-code "-k".
+PMG_TLS_VERIFY="${PMG_TLS_VERIFY:-{{ pmg_domain_mgmt_tls_verify | string | lower }}}"
+# Fallback command used when -C/--command is omitted entirely.
+PMG_DEFAULT_COMMAND="${PMG_DEFAULT_COMMAND:-{{ pmg_domain_mgmt_default_command | lower }}}"
+# Seconds to wait before the post-change verification re-read (lets PMG run
+# postmap and settle). Set to 0 to skip the wait.
+PMG_SLEEP_LENGTH="${PMG_SLEEP_LENGTH:-{{ pmg_domain_mgmt_sleep_length }}}"
+# Transport-map defaults, applied when the matching flag is not given.
+PMG_TRANSPORT_PORT="${PMG_TRANSPORT_PORT:-{{ pmg_domain_mgmt_transport_port }}}"
+PMG_TRANSPORT_PROTOCOL="${PMG_TRANSPORT_PROTOCOL:-{{ pmg_domain_mgmt_transport_protocol }}}"
+PMG_TRANSPORT_USE_MX="${PMG_TRANSPORT_USE_MX:-{{ pmg_domain_mgmt_transport_use_mx | int }}}"
 
-decodeDataFromJson(){
-    echo `echo $1 \
-	    | sed 's/{\"data\"\:{//g' \
-	    | sed 's/\\\\\//\//g' \
-	    | sed 's/[{}]//g' \
-        | awk -v k="text" '{n=split($0,a,","); for (i=1; i<=n; i++) print a[i]}' \
-	    | sed 's/\"\:\"/\|/g' \
-	    | sed 's/[\,]/ /g' \
-	    | sed 's/\"// g' \
-	    | grep -w $2 \
-	    | awk -F "|" '{print $2}'`
-}
-
-gen_ticket(){
-verboseoutput "# GENERATE TICKET"
-DATA=`curl -s -k -d "username=$PROX_USERNAME&password=$PROX_PASSWORD" $HOST/api2/json/access/ticket` 
-TICKET=$(decodeDataFromJson "$DATA" 'ticket')
-CSRF=$(decodeDataFromJson "$DATA" 'CSRFPreventionToken')
-#echo CSRF: $CSRF
-#echo TICKET: $TICKET
-if [ -z "$TICKET" ]; then
-    printf "# TICKET not found!\n">&2
-    printf "# Please check credentials/token.\n">&2
-    printf "TICKET: $TICKET\n">&2
-    exit 1
-fi
-if [ -z "$CSRF" ]; then
-    printf "# CSRF not found!\n">&2
-    printf "# Please check credentials/token.\n">&2
-    printf "CSRF: $CSRF\n">&2
-    exit 1
-fi
-}
-
-get_domain(){
-#echo "# GET"
-GET_DOMAIN=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X GET $HOST/api2/json/config/domains/$DOMAIN`
-GET_DOMAIN_RESULT=$(decodeDataFromJson "$GET_DOMAIN" "data")
-verboseoutput "GET_DOMAIN: $GET_DOMAIN"
-#echo GET_DOMAIN_RESULT: $GET_DOMAIN_RESULT
-}
-
-add_domain(){
-#echo "# POST"
-ADD_DOMAIN=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X POST -d "domain=$DOMAIN&comment=$COMMENT" $HOST/api2/json/config/domains`
-verboseoutput "ADD_DOMAIN: $ADD_DOMAIN"
-#printf "\n"
-}
-
-update_domain(){
-#echo "# PUT"
-UPDATE_DOMAIN=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X PUT -d "comment=$COMMENT" $HOST/api2/json/config/domains/$DOMAIN`
-verboseoutput "UPDATE_DOMAIN: $UPDATE_DOMAIN"
-#printf "\n"
-}
-
-delete_domain(){
-#echo "# DELETE"
-DELETE_DOMAIN=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X DELETE $HOST/api2/json/config/domains/$DOMAIN`
-verboseoutput "UPDATE_DOMAIN: $UPDATE_DOMAIN"
-#printf "\n"
-}
-
-get_transport(){
-#echo "# GET"
-GET_TRANSPORT=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X GET $HOST/api2/json/config/transport/$DOMAIN`
-GET_TRANSPORT_RESULT=$(decodeDataFromJson "$GET_TRANSPORT" "data")
-verboseoutput "GET_TRANSPORT: $GET_TRANSPORT"
-#printf "\n"
-#echo GET_TRANSPORT_RESULT: $GET_TRANSPORT_RESULT
-}
-
-add_transport(){
-#echo "# POST"
-ADD_TRANSPORT=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X POST -d "domain=$DOMAIN&comment=$COMMENT&host=$TRANSPORT&use_mx=0" $HOST/api2/json/config/transport`
-verboseoutput "ADD_TRANSPORT: $ADD_TRANSPORT"
-#printf "\n"
-}
-
-update_transport(){
-#echo "# PUT"
-UPDATE_TRANSPORT=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X PUT -d "comment=$COMMENT&host=$TRANSPORT&use_mx=0" $HOST/api2/json/config/transport/$DOMAIN`
-verboseoutput "UPDATE_TRANSPORT: $UPDATE_TRANSPORT"
-#printf "\n"
-}
-
-delete_transport(){
-#echo "# DELETE"
-DELETE_TRANSPORT=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X DELETE $HOST/api2/json/config/transport/$DOMAIN`
-verboseoutput "DELETE_TRANSPORT: $DELETE_TRANSPORT"
-#printf "\n"
-}
-
-get_dkim(){
-#echo "# GET"
-GET_DKIM=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X GET $HOST/api2/json/config/dkim/domains/$DOMAIN`
-GET_DKIM_RESULT=$(decodeDataFromJson "$GET_DKIM" "data")
-verboseoutput "GET_DKIM: $GET_DKIM"
-#printf "\n"
-#echo GET_TRANSPORT_RESULT: $GET_DKIM_RESULT
-}
-
-add_dkim(){
-#echo "# POST"
-ADD_DKIM=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X POST -d "domain=$DOMAIN&comment=$COMMENT" $HOST/api2/json/config/dkim/domains`
-verboseoutput "ADD_DKIM: $ADD_DKIM"
-#printf "\n"
-}
-
-update_dkim(){
-#echo "# PUT"
-UPDATE_DKIM=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X PUT -d "comment=$COMMENT" $HOST/api2/json/config/dkim/domains/$DOMAIN`
-verboseoutput "UPDATE_DKIM: $UPDATE_DKIM"
-#printf "\n"
-}
-
-delete_dkim(){
-#echo "# DELETE"
-DELETE_DKIM=`curl --fail -s -k -b "PMGAuthCookie=$TICKET" -H "CSRFPreventionToken: $CSRF" -X DELETE $HOST/api2/json/config/dkim/domains/$DOMAIN`
-verboseoutput "DELETE_DKIM: $DELETE_DKIM"
-#printf "\n"
-}
-
-help(){
-echo ""
-echo "### ProxmoxMailGateway Domain Management Script HELP ###"
-echo ""
-echo "Usage:  pmg_domain_mgmt.sh -C get -d mydomain.de"
-echo "   or:  pmg_domain_mgmt.sh -C add -c \"my client\" -d mydomain.de"
-echo "   or:  pmg_domain_mgmt.sh -C add -c myclient -d mydomain.de -t mail.mydomain.de -k"
-echo "   or:  pmg_domain_mgmt.sh -C update -c myclient -d mydomain.de -t mail.mydomain.de -k"
-echo "   or:  pmg_domain_mgmt.sh -C delete -d mydomain.de"
-echo ""
-echo "-h, --h, -help, --help            Call this help menu."
-echo "-C, -command, --command           'get', 'add', 'update' or 'delete'"
-echo "-d, -domain, --domain             Domain that should be configured e.g. 'mydomain.de'"
-echo "-t, -transport, --transport       FQDN of Transport target Mailserver e.g. 'mail.mydomain.de'"
-echo "-k, -dkim, --dkim                 Enable DKIM signing for Domain"
-echo "-c, -comment, --comment           Comment that should be added to domain relay, transport (if defined) and DKIM (if defined)"
-echo "                                  If COMMENT is omitted and update command is send, existing comments will be removed!"
-echo "-D, -debug, --debug               More verbose output"
-exit 1
-}
-
-# set default vars
-DKIM="false"
+# -----------------------------------------------------------------------------
+# Tiny helpers
+# -----------------------------------------------------------------------------
 DEBUG="false"
 
-# set empty vars to make sure they are actually set by parameter
+log()  { printf '# %s\n' "$*"; }
+err()  { printf '# ERROR: %s\n' "$*" >&2; }
+die()  { err "$*"; exit 1; }
+dbg()  { [[ "$DEBUG" == "true" ]] && printf '# DEBUG: %s\n' "$*" >&2 || true; }
+
+usage() {
+    cat <<'EOF'
+
+### Proxmox Mail Gateway Domain Management ###
+
+Usage:
+  pmg_domain_mgmt.sh -C get    -d example.com
+  pmg_domain_mgmt.sh -C add    -d example.com -c "ACME Corp"
+  pmg_domain_mgmt.sh -C add    -d example.com -c "ACME Corp" -t mail.example.com -k
+  pmg_domain_mgmt.sh -C update -d example.com -c "ACME Corp" -t mail.example.com -p 25 -k
+  pmg_domain_mgmt.sh -C delete -d example.com
+
+Commands (-C):
+  get      Report the current state of the domain (read-only).
+  add      Ensure the domain (and -t/-k extras) exist; never removes anything.
+  update   Ensure the domain exists and update its comment / transport / DKIM.
+  delete   Remove the domain AND its transport and DKIM entries (if present).
+
+Options:
+  -C, --command     get | add | update | delete
+  -d, --domain      Domain to manage, e.g. 'example.com' (required).
+  -c, --comment     Comment for the domain / transport / DKIM entry.
+                    NOTE: on 'update' an omitted comment clears the existing one.
+  -t, --transport   Transport target host (FQDN or IP), e.g. 'mail.example.com'.
+                    Presence of this flag enables transport handling.
+  -p, --port        Transport port (default: see config, usually 25).
+  -P, --protocol    Transport protocol: smtp | lmtp (default: smtp).
+  -m, --use-mx      Transport MX lookup: 0 (off) | 1 (on) (default: 0).
+  -k, --dkim        Enable DKIM signing for the domain (flag).
+  -D, --debug       Verbose output (prints raw API responses to stderr).
+  -h, --help        Show this help.
+
+Connection details (host, user, password, TLS verify) come from the config
+file or the environment, never from the command line.
+EOF
+}
+
+# -----------------------------------------------------------------------------
+# Configuration loading
+# -----------------------------------------------------------------------------
+# The config file is plain "VAR='value'" lines. We source it, but values that
+# are ALREADY set in the environment take precedence (handy for CI / automation
+# secrets): we snapshot them first and restore afterwards.
+load_config() {
+    local env_host="$PMG_HOST" env_user="$PMG_USERNAME" env_pass="$PMG_PASSWORD"
+
+    if [[ -r "$CONFIG_FILE" ]]; then
+        dbg "Loading config file: $CONFIG_FILE"
+        # shellcheck source=/dev/null
+        source "$CONFIG_FILE"
+    else
+        dbg "Config file '$CONFIG_FILE' not found/readable — relying on environment."
+    fi
+
+    [[ -n "$env_host" ]] && PMG_HOST="$env_host"
+    [[ -n "$env_user" ]] && PMG_USERNAME="$env_user"
+    [[ -n "$env_pass" ]] && PMG_PASSWORD="$env_pass"
+}
+
+# Note: we build the list as a space-prefixed string rather than a bash array
+# on purpose — an array-length test (${#...}) would collide with Jinja's
+# comment syntax ({# ... #}) when this file is rendered as a template.
+require_tools() {
+    local missing=""
+    for cmd in curl jq; do
+        command -v "$cmd" >/dev/null 2>&1 || missing+=" $cmd"
+    done
+    [[ -z "$missing" ]] || die "Required command(s) not found:$missing"
+}
+
+# -----------------------------------------------------------------------------
+# API plumbing
+# -----------------------------------------------------------------------------
+TICKET=""
+CSRF=""
+
+# curl flags shared by every call. --insecure is added only when TLS
+# verification is disabled. We never use -f/--fail so we can inspect the body
+# and HTTP status ourselves.
+curl_base_args() {
+    CURL_ARGS=(--silent --show-error --connect-timeout 5 --max-time 30)
+    [[ "$PMG_TLS_VERIFY" == "true" ]] || CURL_ARGS+=(--insecure)
+}
+
+# api METHOD PATH [data-field ...]
+# Performs an authenticated request and prints "<body>\n<http_status>".
+# Data fields are passed as KEY=VALUE and URL-encoded safely.
+api() {
+    local method="$1" path="$2"; shift 2
+    local url="$PMG_HOST/api2/json$path"
+    local args=("${CURL_ARGS[@]}" -X "$method")
+    args+=(-b "PMGAuthCookie=$TICKET")
+    args+=(-H "CSRFPreventionToken: $CSRF")
+    local field
+    for field in "$@"; do
+        args+=(--data-urlencode "$field")
+    done
+    args+=(-w $'\n%{http_code}')
+    curl "${args[@]}" "$url"
+}
+
+# Splits the "<body>\n<status>" output of api() into globals API_BODY/API_STATUS.
+api_split() {
+    local raw="$1"
+    API_STATUS="${raw##*$'\n'}"
+    API_BODY="${raw%$'\n'*}"
+    # Single-line responses leave body == status; normalise that.
+    [[ "$API_BODY" == "$API_STATUS" ]] && API_BODY=""
+}
+
+api_ok() { [[ "$API_STATUS" =~ ^2[0-9][0-9]$ ]]; }
+
+# Obtain a ticket + CSRF token via username/password.
+api_login() {
+    curl_base_args
+    local raw
+    raw=$(curl "${CURL_ARGS[@]}" \
+        --data-urlencode "username=$PMG_USERNAME" \
+        --data-urlencode "password=$PMG_PASSWORD" \
+        -w $'\n%{http_code}' \
+        "$PMG_HOST/api2/json/access/ticket")
+    api_split "$raw"
+    # Do NOT debug-print the body: it contains the ticket + CSRF token, which are
+    # short-lived credentials. Only the status is safe to log.
+    dbg "Login HTTP $API_STATUS"
+    api_ok || die "Authentication failed (HTTP $API_STATUS). Check host/credentials."
+
+    TICKET=$(jq -r '.data.ticket // empty' <<<"$API_BODY")
+    CSRF=$(jq -r '.data.CSRFPreventionToken // empty' <<<"$API_BODY")
+    [[ -n "$TICKET" && -n "$CSRF" ]] || die "Login response missing ticket/CSRF token."
+    dbg "Authenticated as $PMG_USERNAME"
+}
+
+# entry_exists ENDPOINT DOMAIN -> 0 if a child with .domain == DOMAIN exists.
+# Uses exact JSON matching (not substring), so 'example.com' never matches
+# 'notexample.com'.
+entry_exists() {
+    local path="$1" domain="$2" raw
+    raw=$(api GET "$path"); api_split "$raw"
+    api_ok || { dbg "GET $path -> HTTP $API_STATUS"; return 2; }
+    jq -e --arg d "$domain" 'any(.data[]?; .domain == $d)' >/dev/null <<<"$API_BODY"
+}
+
+domain_exists()    { entry_exists /config/domains "$1"; }
+transport_exists() { entry_exists /config/transport "$1"; }
+dkim_exists()      { entry_exists /config/dkim/domains "$1"; }
+
+# Pretty-print a single matching entry (for 'get').
+show_entry() {
+    local path="$1" domain="$2" raw
+    raw=$(api GET "$path"); api_split "$raw"
+    api_ok || return 1
+    jq -r --arg d "$domain" '.data[]? | select(.domain == $d)' <<<"$API_BODY"
+}
+
+# -----------------------------------------------------------------------------
+# Domain / transport / DKIM mutations
+# -----------------------------------------------------------------------------
+mutate() {  # mutate "human label" METHOD PATH [data ...]
+    local label="$1" method="$2" path="$3"; shift 3
+    local raw; raw=$(api "$method" "$path" "$@"); api_split "$raw"
+    if api_ok; then
+        log "$label: OK"
+    else
+        err "$label failed (HTTP $API_STATUS): $API_BODY"
+        return 1
+    fi
+}
+
+add_domain()    { mutate "Add domain"    POST   /config/domains          "domain=$DOMAIN" "comment=$COMMENT"; }
+update_domain() { mutate "Update domain" PUT    "/config/domains/$DOMAIN" "comment=$COMMENT"; }
+delete_domain() { mutate "Delete domain" DELETE "/config/domains/$DOMAIN"; }
+
+add_transport() {
+    mutate "Add transport" POST /config/transport \
+        "domain=$DOMAIN" "host=$TRANSPORT" "comment=$COMMENT" \
+        "protocol=$PMG_TRANSPORT_PROTOCOL" "port=$PORT" "use_mx=$USE_MX"
+}
+update_transport() {
+    mutate "Update transport" PUT "/config/transport/$DOMAIN" \
+        "host=$TRANSPORT" "comment=$COMMENT" \
+        "protocol=$PMG_TRANSPORT_PROTOCOL" "port=$PORT" "use_mx=$USE_MX"
+}
+delete_transport() { mutate "Delete transport" DELETE "/config/transport/$DOMAIN"; }
+
+add_dkim()    { mutate "Add DKIM domain"    POST   /config/dkim/domains          "domain=$DOMAIN" "comment=$COMMENT"; }
+update_dkim() { mutate "Update DKIM domain" PUT    "/config/dkim/domains/$DOMAIN" "comment=$COMMENT"; }
+delete_dkim() { mutate "Delete DKIM domain" DELETE "/config/dkim/domains/$DOMAIN"; }
+
+# -----------------------------------------------------------------------------
+# High-level commands
+# -----------------------------------------------------------------------------
+cmd_get() {
+    if domain_exists "$DOMAIN"; then
+        log "Domain '$DOMAIN' found:"
+        show_entry /config/domains "$DOMAIN"
+    else
+        log "Domain '$DOMAIN' NOT found."
+    fi
+    if transport_exists "$DOMAIN"; then
+        log "Transport for '$DOMAIN' found:"
+        show_entry /config/transport "$DOMAIN"
+    else
+        log "Transport for '$DOMAIN' NOT found."
+    fi
+    if dkim_exists "$DOMAIN"; then
+        log "DKIM signing for '$DOMAIN' enabled:"
+        show_entry /config/dkim/domains "$DOMAIN"
+    else
+        log "DKIM signing for '$DOMAIN' disabled."
+    fi
+}
+
+# Shared 'add' / 'update' worker. $1 = "add" | "update".
+cmd_upsert() {
+    local mode="$1" rc=0
+
+    if domain_exists "$DOMAIN"; then
+        if [[ "$mode" == "update" ]]; then
+            log "Domain exists — updating."
+            update_domain || rc=1
+        else
+            log "Domain already exists — leaving as is."
+        fi
+    else
+        log "Domain does not exist — adding."
+        add_domain || rc=1
+    fi
+
+    if [[ -n "$TRANSPORT" ]]; then
+        if transport_exists "$DOMAIN"; then
+            if [[ "$mode" == "update" ]]; then
+                log "Transport exists — updating."
+                update_transport || rc=1
+            else
+                log "Transport already exists — leaving as is."
+            fi
+        else
+            log "Transport does not exist — adding."
+            add_transport || rc=1
+        fi
+    fi
+
+    if [[ "$DKIM" == "true" ]]; then
+        if dkim_exists "$DOMAIN"; then
+            if [[ "$mode" == "update" ]]; then
+                log "DKIM domain exists — updating."
+                update_dkim || rc=1
+            else
+                log "DKIM domain already exists — leaving as is."
+            fi
+        else
+            log "DKIM domain does not exist — adding."
+            add_dkim || rc=1
+        fi
+    fi
+
+    return "$rc"
+}
+
+# Delete the domain plus any transport / DKIM entry, regardless of -t/-k.
+cmd_delete() {
+    local rc=0
+    if domain_exists "$DOMAIN"; then
+        delete_domain || rc=1
+    else
+        log "Domain does not exist — nothing to delete."
+    fi
+    if transport_exists "$DOMAIN"; then
+        delete_transport || rc=1
+    else
+        log "Transport does not exist — nothing to delete."
+    fi
+    if dkim_exists "$DOMAIN"; then
+        delete_dkim || rc=1
+    else
+        log "DKIM domain does not exist — nothing to delete."
+    fi
+    return "$rc"
+}
+
+# Re-read state after a change and confirm it matches the intent.
+verify() {
+    local mode="$1" rc=0
+
+    if [[ "${PMG_SLEEP_LENGTH:-0}" -gt 0 ]]; then
+        log "Waiting ${PMG_SLEEP_LENGTH}s before verification..."
+        sleep "$PMG_SLEEP_LENGTH"
+    fi
+    log "Verifying result..."
+
+    case "$mode" in
+        add|update)
+            domain_exists "$DOMAIN" || { err "Domain missing after $mode."; rc=1; }
+            if [[ -n "$TRANSPORT" ]]; then
+                transport_exists "$DOMAIN" || { err "Transport missing after $mode."; rc=1; }
+            fi
+            if [[ "$DKIM" == "true" ]]; then
+                dkim_exists "$DOMAIN" || { err "DKIM domain missing after $mode."; rc=1; }
+            fi
+            ;;
+        delete)
+            ! domain_exists "$DOMAIN"    || { err "Domain still present after delete."; rc=1; }
+            ! transport_exists "$DOMAIN" || { err "Transport still present after delete."; rc=1; }
+            ! dkim_exists "$DOMAIN"      || { err "DKIM domain still present after delete."; rc=1; }
+            ;;
+    esac
+
+    [[ "$rc" -eq 0 ]] && log "Verification OK." || err "Verification FAILED — check manually."
+    return "$rc"
+}
+
+# -----------------------------------------------------------------------------
+# Argument parsing
+# -----------------------------------------------------------------------------
 COMMAND=""
 DOMAIN=""
 COMMENT=""
 TRANSPORT=""
-# empty vars to make sure we only use recent data
-GET_DOMAIN=""
-GET_DKIM=""
-GET_TRANSPORT=""
+DKIM="false"
+PORT=""
+USE_MX=""
 
-# Script Logic
-
-# Show help menu
-# If no parameter was provided
-if [ $# -le 0 ]; then
-help
-exit 1
+if [[ $# -eq 0 ]]; then
+    usage
+    exit 1
 fi
 
-if [[ "$*" == *-help* ]] || [[ "$*" == *-h* ]]; then
-    help
-    exit 0
-fi
-
-# Convert all command inputs to lower case
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
     case "$1" in
-        -C|-command|--command)
-            COMMAND="${2,,}"
-            shift # past argument
-            shift # past value
-            ;;
-        -d|-domain|--domain)
-            DOMAIN="${2,,}"
-            shift # past argument
-            shift # past value
-            ;;
-        -c|-comment|--comment)
-            COMMENT="$2"
-            shift # past argument
-            shift # past value
-            ;;
-        -t|-transport|--transport)
-            TRANSPORT="${2,,}"
-            shift # past argument
-            shift # past value
-            ;;
-        -k|-dkim|--dkim)
-            DKIM="true"
-            #shift # past argument
-            shift # past value
-            ;;
-        -D|-debug|--debug)
-            DEBUG="true"
-            #shift # past argument
-            shift # past value
-            ;;
-        *)
-            printf "***************************\n">&2
-            printf "* Error: Invalid argument.*\n">&2
-            printf "***************************\n">&2
-            help
-            exit 1                            
+        -h|--help)       usage; exit 0 ;;
+        -C|--command)    COMMAND="${2,,}"; shift 2 ;;
+        -d|--domain)     DOMAIN="${2,,}"; shift 2 ;;
+        -c|--comment)    COMMENT="$2"; shift 2 ;;
+        -t|--transport)  TRANSPORT="${2,,}"; shift 2 ;;
+        -p|--port)       PORT="$2"; shift 2 ;;
+        -P|--protocol)   PMG_TRANSPORT_PROTOCOL="${2,,}"; shift 2 ;;
+        -m|--use-mx)     USE_MX="$2"; shift 2 ;;
+        -k|--dkim)       DKIM="true"; shift ;;
+        -D|--debug)      DEBUG="true"; shift ;;
+        --config)        CONFIG_FILE="$2"; shift 2 ;;
+        *) err "Invalid argument: '$1'"; usage; exit 1 ;;
     esac
 done
 
-# Check if importan vars are defined
-if [ -z "$PROX_USERNAME" ]; then
-    printf "***************************\n">&2
-    printf "# Variable in script missing! - PROX_USERNAME was not provided!\n">&2
-    printf "***************************\n">&2
-    help
-    exit 1
-fi
-if [ -z "$PROX_PASSWORD" ]; then
-    printf "***************************\n">&2
-    printf "# Variable in script missing! - PROX_PASSWORD was not provided!\n">&2
-    printf "***************************\n">&2
-    help
-    exit 1
-fi
-if [ -z "$HOST" ]; then
-    printf "***************************\n">&2
-    printf "# Variable in script missing! - HOST was not provided!\n">&2
-    printf "***************************\n">&2
-    help
-    exit 1
-fi
-if [ -z "$COMMAND" ]; then
-    printf "***************************\n">&2
-    printf "# Option missing! - Command was not provided!\n">&2
-    printf "# Fallback to default '$DEFAULT_COMMAND'. \n">&2
-    printf "***************************\n">&2
-    COMMAND="${DEFAULT_COMMAND,,}"
-    #help
-    #exit 1
-fi
-if [ -z "$DOMAIN" ]; then
-    printf "***************************\n">&2
-    printf "# Option missing! - Domain was not provided!\n">&2
-    printf "***************************\n">&2
-    help
-    exit 1
+# Apply transport defaults for anything not given on the command line.
+PORT="${PORT:-$PMG_TRANSPORT_PORT}"
+USE_MX="${USE_MX:-$PMG_TRANSPORT_USE_MX}"
+
+# -----------------------------------------------------------------------------
+# Validation
+# -----------------------------------------------------------------------------
+require_tools
+load_config
+
+if [[ -z "$COMMAND" ]]; then
+    err "No command given — falling back to default '$PMG_DEFAULT_COMMAND'."
+    COMMAND="$PMG_DEFAULT_COMMAND"
 fi
 
-# Check if domain name is valid
-DOMAIN_BEFORE_CHECK="$DOMAIN"
-DOMAIN=$(echo $DOMAIN | grep -P '(?=^.{4,253}$)(^(?:[a-zA-Z0-9](?:(?:[a-zA-Z0-9\-]){0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$)')
-if [ -z "$DOMAIN" ]; then
-    printf "# Domain name is not valid!\n">&2
-    printf "$DOMAIN_BEFORE_CHECK\n">&2
-    help
-    exit 1
-fi
-
-# Check for valid command options
 case "$COMMAND" in
-    add)
-    ;;
-    update)
-    ;;
-    delete)
-    ;;
-    get)
-    ;;
-    *)
-    printf "*********************************\n">&2
-    printf "* Error: Invalid command option.*\n">&2
-    printf "*********************************\n">&2
-    help
-    exit 1
+    get|add|update|delete) ;;
+    *) die "Invalid command '$COMMAND' (expected get|add|update|delete)." ;;
 esac
 
-printf "###########################\n"
-printf "PMG URL:    '$HOST'\n"
-printf "Command:    '$COMMAND'\n"
-printf "Domain:     '$DOMAIN'\n"
-printf "Comment:    '$COMMENT'\n"
-printf "Transport:  '$TRANSPORT'\n"
-printf "DKIM:       '$DKIM'\n"
-printf "Debug:      '$DEBUG'\n"
-printf "###########################\n"
+[[ -n "$DOMAIN" ]]       || die "No domain given (-d/--domain)."
+[[ -n "$PMG_HOST" ]]     || die "PMG_HOST is not set (config file or environment)."
+[[ -n "$PMG_USERNAME" ]] || die "PMG_USERNAME is not set (config file or environment)."
+[[ -n "$PMG_PASSWORD" ]] || die "PMG_PASSWORD is not set (config file or environment)."
 
-# Check if PMG API is reachable
-if curl --fail --connect-timeout 2 --max-time 2 --output /dev/null --silent "$HOST/api2/json/access/ticket"; then
-  verboseoutput "API at $HOST/api2/json/access/ticket is reachable."
-  #printf "\n"
-else
-  printf '%s\n' "ERROR - API at $HOST/api2/json/access/ticket is NOT reachable!">&2
-  exit 1
+# RFC-1035-ish domain sanity check (4..253 chars, valid labels, real TLD).
+if ! grep -qP '(?=^.{4,253}$)(^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$)' <<<"$DOMAIN"; then
+    die "Domain name '$DOMAIN' is not valid."
 fi
 
-gen_ticket
-get_domain
-# Only check transport if it was defined
-if [ ! -z "$TRANSPORT" ] || [ $COMMAND == "get" ]; then
-    get_transport
-fi
-# Only check dkim if it was defined
-if [[ "$DKIM" == "true" ]] || [ $COMMAND == "get" ]; then
-    get_dkim
+case "$PMG_TRANSPORT_PROTOCOL" in
+    smtp|lmtp) ;;
+    *) die "Invalid transport protocol '$PMG_TRANSPORT_PROTOCOL' (expected smtp|lmtp)." ;;
+esac
+
+cat <<EOF
+###########################
+PMG host:   $PMG_HOST
+TLS verify: $PMG_TLS_VERIFY
+Command:    $COMMAND
+Domain:     $DOMAIN
+Comment:    $COMMENT
+Transport:  ${TRANSPORT:-<none>}${TRANSPORT:+ (proto=$PMG_TRANSPORT_PROTOCOL port=$PORT use_mx=$USE_MX)}
+DKIM:       $DKIM
+###########################
+EOF
+
+# -----------------------------------------------------------------------------
+# Run
+# -----------------------------------------------------------------------------
+curl_base_args
+# Quick reachability probe before we try to authenticate.
+if ! curl "${CURL_ARGS[@]}" --output /dev/null "$PMG_HOST/api2/json/access/ticket"; then
+    die "PMG API at $PMG_HOST is not reachable."
 fi
 
-if [[ $COMMAND == "get" ]]; then
-    if [[ $GET_DOMAIN == *"$DOMAIN"* ]]; then
-        printf "# Domain found!\n"
-        printf "# Domain: $GET_DOMAIN\n"
-    else
-        printf "# Domain not found!\n"
-    fi
-    if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-        printf "# Transport found!\n"
-        printf "# Transport: $GET_TRANSPORT\n"
-    else
-        printf "# Transport not found!\n"
-    fi
-    if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-        printf "# DKIM signing enabled!\n"
-        printf "# DKIM: $GET_DKIM\n"
-    else
-        printf "# DKIM signing disabled (domain not found) !\n"
-    fi
+api_login
+
+case "$COMMAND" in
+    get)
+        cmd_get
+        exit 0
+        ;;
+    add|update)
+        cmd_upsert "$COMMAND" || exit 1
+        verify "$COMMAND" || exit 1
+        ;;
+    delete)
+        cmd_delete || exit 1
+        verify delete || exit 1
+        ;;
+esac
+
 exit 0
-fi
-
-
-if [[ $GET_DOMAIN == *"$DOMAIN"* ]]; then
-    if [[ $COMMAND == "update" ]]; then
-        echo "# Domain exists, updating..."
-        update_domain
-        if [ ! -z "$TRANSPORT" ]; then
-            if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-                echo "# Transport exists, updating..."
-                update_transport
-            else
-                echo "# Transport does not exists, cannot update."
-                echo "# Adding transport instead now..."
-                add_transport
-            fi
-        fi
-        if [[ "$DKIM" == "true" ]]; then
-            if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-                echo "# DKIM domain exists, updating..."
-                update_dkim
-            else
-                echo "# DKIM domain does not exist, cannot update."
-                echo "# Adding DKIM domain instead now..."
-                add_dkim
-            fi
-        fi
-    elif [[ $COMMAND == "delete" ]]; then
-        echo "# Domain exists, deleting now..."
-        delete_domain
-        # Check for transport even if not specified
-        get_transport
-        if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-            echo "# Transport exists, deleting now..."
-            delete_transport
-        else
-            echo "# Transport does not exists, nothing to delete."
-        fi
-        # Check for DKIM even if not specified
-        get_dkim
-        if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-            echo "# DKIM domain exists, deleting now..."
-            delete_dkim
-        else
-            echo "# DKIM domain does not exist, nothing to delete."
-        fi
-    elif [[ $COMMAND == "add" ]]; then
-        echo "# Domain already exists."
-        # We need a clean var
-        addconfigchanged="0"
-        if [ ! -z "$TRANSPORT" ]; then
-            if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-                echo "# Transport already exists."
-                addconfigchanged="0"
-            else
-                echo "# Transport does not exists, adding now."
-                add_transport
-                addconfigchanged="1"
-            fi
-        fi
-        if [[ "$DKIM" == "true" ]]; then
-            if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-                echo "# DKIM domain already exists."
-                addconfigchanged=$addconfigchanged"0"
-            else
-                echo "# DKIM domain does not exist, adding now."
-                add_dkim
-                addconfigchanged=$addconfigchanged"1"
-            fi
-        fi
-        if [[ "$addconfigchanged" == *"1"* ]]; then
-            echo "# Config changed"
-        else
-            # Exit script, since there is nothing more to do.
-            exit 0
-        fi
-    else
-        echo "# ERROR, unknown command, abort!" >&2
-        exit 1
-    fi
-else
-    if [[ $COMMAND == "update" ]]; then
-        echo "# Domain does not exists, cannot update."
-        echo "# Adding domain instead now..."
-        add_domain
-        if [ ! -z "$TRANSPORT" ]; then
-            if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-                echo "# Transport exists, updating..."
-                update_transport
-            else
-                echo "# Transport does not exists, cannot update."
-                echo "# Adding transport instead now..."
-                add_transport
-            fi
-        fi
-        if [[ "$DKIM" == "true" ]]; then
-            if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-                echo "# DKIM domain exists, updating..."
-                update_dkim
-            else
-                echo "# DKIM domain does not exist, cannot update."
-                echo "# Adding DKIM domain instead now..."
-                add_dkim
-            fi
-        fi
-    elif [[ $COMMAND == "delete" ]]; then
-        echo "# Domain does not exists, nothing to delete."
-        # We need a clean var
-        deleteconfigchanged="0"
-        # Check for transport even if not specified
-        get_transport
-        if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-            echo "# Transport exists, deleting now..."
-            delete_transport
-            deleteconfigchanged="1"
-        else
-            echo "# Transport does not exists, nothing to delete."
-            deleteconfigchanged="0"
-            #exit 0
-        fi
-        # Check for DKIM even if not specified
-        get_dkim
-        if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-            echo "# DKIM domain exists, deleting now..."
-            delete_dkim
-            deleteconfigchanged=$deleteconfigchanged"1"
-        else
-            echo "# DKIM domain does not exist, nothing to delete."
-            deleteconfigchanged=$deleteconfigchanged"0"
-            #exit 0
-        fi
-        if [[ "$deleteconfigchanged" == *"1"* ]]; then
-            echo "# Config changed"
-        else
-            # Exit script, since there is nothing more to do.
-            exit 0
-        fi
-    elif [[ $COMMAND == "add" ]]; then
-        echo "# Domain does not exist, adding now..."
-        add_domain
-        if [ ! -z "$TRANSPORT" ]; then
-            if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-                echo "# Transport already exists."
-            else
-                echo "# Transport does not exists, adding now."
-                add_transport
-            fi
-        fi
-        if [[ "$DKIM" == "true" ]]; then
-            if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-                echo "# DKIM domain already exists."
-            else
-                echo "# DKIM domain does not exist, adding now."
-                add_dkim
-            fi
-        fi
-    else
-        echo "# ERROR, unknown command, abort!" >&2
-        exit 1
-    fi
-fi
-
-# Empty vars to make sure we only use recent data
-GET_DOMAIN=""
-GET_DKIM=""
-GET_TRANSPORT=""
-
-echo "# Sleeping $SLEEP_LENGTH seconds..."
-sleep $SLEEP_LENGTH
-echo "# Check domain again..."
-get_domain
-# Only check transport if it was defined
-if [ ! -z "$TRANSPORT" ]; then
-    get_transport
-fi
-# Only check dkim if it was defined
-if [[ "$DKIM" == "true" ]]; then
-    get_dkim
-fi
-# If get is positiv, try to update
-# There might be new data for the comment field
-# Maybe even compair before updating. 
-# Updating doesn't do any harm though. Maybe just do it.
-
-if [[ $GET_DOMAIN == *"$DOMAIN"* ]]; then
-    if [[ $COMMAND == "update" ]]; then
-        if [[ $GET_DOMAIN == *"$COMMENT"* ]]; then
-            echo "# Domain comment was updated successfully."
-            if [ ! -z "$TRANSPORT" ]; then
-                if [[ $GET_TRANSPORT == *"$TRANSPORT"* ]]; then
-                    echo "# Transport host updated successfully."
-                else
-                    echo "# ERROR - Transport host update not successfull!" >&2
-                    exit 1
-                fi
-                if [[ $GET_TRANSPORT == *"$COMMENT"* ]]; then
-                    echo "# Transport comment updated successfully."
-                else
-                    echo "# ERROR - Transport comment update not successfull!" >&2
-                    exit 1
-                fi
-            fi
-            if [[ "$DKIM" == "true" ]]; then
-                if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-                    echo "# DKIM domain updated successfully."
-                else
-                    echo "# ERROR - DKIM domain update not successfull!" >&2
-                    exit 1
-                fi
-                if [[ $GET_DKIM == *"$COMMENT"* ]]; then
-                    echo "# DKIM domain comment updated successfully."
-                else
-                    echo "# ERROR - DKIM domain comment update not successfull!" >&2
-                    exit 1
-                fi
-            fi
-            exit 0
-        else
-            echo "# ERROR - Domain update not successfull!" >&2
-            exit 1
-        fi
-    elif [[ $COMMAND == "delete" ]]; then
-        echo "# ERROR - Domain does still exist!"
-        # Check for transport even if not specified
-        get_transport
-        if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-            echo "# ERROR - Transport does still exist!"
-        fi
-        # Check for DKIM even if not specified
-        get_dkim
-        if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-            echo "# ERROR - DKIM domain does still exist!" >&2
-        fi
-        exit 1
-    elif [[ $COMMAND == "add" ]]; then
-        echo "# Domain was added succesfully."
-        if [ ! -z "$TRANSPORT" ]; then
-            if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-                echo "# Transport was added successfully."
-            else
-                echo "# ERROR - Adding transport was not successfull!" >&2
-                exit 1
-            fi
-        fi
-        if [[ "$DKIM" == "true" ]]; then
-            if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-                echo "# DKIM domain was added successfully."
-            else
-                echo "# ERROR - Adding DKIM domain not successfull!" >&2
-                exit 1
-            fi
-        fi
-        exit 0
-    else
-        echo "# ERROR, unknown command, abort!" >&2
-        exit 1
-    fi
-else
-    if [[ $COMMAND == "update" ]]; then
-        echo "# ERROR updating domain, check manually!"
-    elif [[ $COMMAND == "delete" ]]; then
-        echo "# Domain deleted successfully."
-        # Check for transport even if not specified
-        get_transport
-        if [[ $GET_TRANSPORT == *"$DOMAIN"* ]]; then
-            echo "# ERROR - Transport was not deleted successfully." >&2
-            exit 1
-        else
-            echo "# Transport was deleted successfully!"
-        fi
-        # Check for DKIM even if not specified
-        get_dkim
-        if [[ $GET_DKIM == *"$DOMAIN"* ]]; then
-            echo "# ERROR - DKIM domain was not deleted successfully." >&2
-            exit 1
-        else
-            echo "# DKIM domain was deleted successfully!"
-        fi
-        exit 0
-    elif [[ $COMMAND == "add" ]]; then
-        echo "# ERROR adding domain, check manually!" >&2
-        exit 1
-    else
-        echo "# ERROR, unknown command, abort!" >&2
-        exit 1
-    fi
-fi

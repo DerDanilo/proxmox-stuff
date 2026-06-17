@@ -1,0 +1,61 @@
+---
+# ============================================================================
+# Deploy the credentials file (secret, 0600) and the management script (0755).
+# Splitting the two means the script carries no secret and can stay world
+# readable, while the password lives only in the locked-down config file.
+# ============================================================================
+
+- name: pmg_domain_mgmt | Ensure the config directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ pmg_domain_mgmt_config_dir }}"
+    state: directory
+    owner: "{{ pmg_domain_mgmt_owner }}"
+    group: "{{ pmg_domain_mgmt_group }}"
+    mode: "0750"
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_deploy
+
+# Holds the PMG password -> 0600 + no_log. `template` writes atomically, so the
+# secret is never briefly world-readable on disk.
+- name: pmg_domain_mgmt | Deploy the credentials/config file
+  become: true
+  ansible.builtin.template:
+    src: pmg-domain-mgmt.conf.j2
+    dest: "{{ pmg_domain_mgmt_config_file }}"
+    owner: "{{ pmg_domain_mgmt_owner }}"
+    group: "{{ pmg_domain_mgmt_group }}"
+    mode: "{{ pmg_domain_mgmt_config_mode }}"
+  no_log: true
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_deploy
+
+# Only ensure the script directory exists; we deliberately do NOT enforce
+# owner/mode here so pointing the script at a shared system dir (e.g. /opt)
+# never rewrites that directory's ownership.
+- name: pmg_domain_mgmt | Ensure the script directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ pmg_domain_mgmt_script_path }}"
+    state: directory
+    # Mode only (no owner/group): keeps a shared dir like /opt at its normal
+    # 0755 without ever rewriting its ownership. The script file itself carries
+    # the role's owner/group below.
+    mode: "0755"
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_deploy
+
+- name: pmg_domain_mgmt | Deploy the management script
+  become: true
+  ansible.builtin.template:
+    src: "{{ pmg_domain_mgmt_script }}.j2"
+    dest: "{{ pmg_domain_mgmt_script_path_full }}"
+    owner: "{{ pmg_domain_mgmt_owner }}"
+    group: "{{ pmg_domain_mgmt_group }}"
+    mode: "{{ pmg_domain_mgmt_script_mode }}"
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_deploy

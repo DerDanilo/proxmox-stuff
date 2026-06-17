@@ -1,0 +1,119 @@
+---
+# ============================================================================
+# OPT-IN: create / update the PMG API user used by the management script.
+# ============================================================================
+# Runs the local `pmgsh` CLI, which exists only ON a PMG node and authenticates
+# implicitly as root@pam — so no API password is needed to bootstrap. The tasks
+# are delegated to `pmg_domain_mgmt_create_user_host`, which defaults to the
+# host the play targets: run the role directly against a PMG and the user is
+# created there. Override that variable to delegate from a separate automation
+# host to a remote PMG instead.
+#
+# PMG's `POST /access/users` accepts a plaintext `password` and hashes it
+# server-side, so we no longer shell out to `mkpasswd`. Password-bearing tasks
+# use the argv form (no shell) and `no_log: true`.
+# ============================================================================
+
+- name: pmg_domain_mgmt | Assert a PMG host is set for user bootstrap
+  ansible.builtin.assert:
+    that:
+      - pmg_domain_mgmt_create_user_host | length > 0
+    fail_msg: >-
+      pmg_domain_mgmt_create_user is true but pmg_domain_mgmt_create_user_host
+      is empty. Leave it at its default (the targeted host) to create the user
+      on the PMG you run against, or set it to a PMG node's inventory name to
+      delegate from an automation host.
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_user
+
+- name: pmg_domain_mgmt | Read existing PMG users
+  become: true
+  ansible.builtin.command:
+    argv:
+      - pmgsh
+      - get
+      - /access/users
+  delegate_to: "{{ pmg_domain_mgmt_create_user_host }}"
+  register: pmg_domain_mgmt_users_raw
+  changed_when: false
+  check_mode: false
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_user
+
+# `pmgsh get` prints the raw API JSON. Parse it and decide create vs. update by
+# an EXACT userid match (no fragile substring search like the old role).
+- name: pmg_domain_mgmt | Determine whether the API user already exists
+  ansible.builtin.set_fact:
+    pmg_domain_mgmt_user_present: >-
+      {{ (pmg_domain_mgmt_users_raw.stdout | from_json
+          | selectattr('userid', 'equalto', pmg_domain_mgmt_prox_username_full)
+          | list | length) > 0 }}
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_user
+
+- name: pmg_domain_mgmt | Create PMG API user
+  become: true
+  ansible.builtin.command:
+    argv:
+      - pmgsh
+      - create
+      - /access/users
+      - --userid
+      - "{{ pmg_domain_mgmt_prox_username_full }}"
+      - --enable
+      - "1"
+      - --role
+      - "{{ pmg_domain_mgmt_create_user_role }}"
+      - --password
+      - "{{ pmg_domain_mgmt_password }}"
+  delegate_to: "{{ pmg_domain_mgmt_create_user_host }}"
+  when: not (pmg_domain_mgmt_user_present | bool)
+  no_log: true
+  changed_when: true   # only runs when the user is absent -> always creates
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_user
+
+- name: pmg_domain_mgmt | Ensure existing API user is enabled with the right role
+  become: true
+  ansible.builtin.command:
+    argv:
+      - pmgsh
+      - set
+      - "/access/users/{{ pmg_domain_mgmt_prox_username_full }}"
+      - --enable
+      - "1"
+      - --role
+      - "{{ pmg_domain_mgmt_create_user_role }}"
+  delegate_to: "{{ pmg_domain_mgmt_create_user_host }}"
+  when: pmg_domain_mgmt_user_present | bool
+  changed_when: true   # pmgsh set has no diff output; treat as a change
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_user
+
+# Re-apply the Vault password so the deployed credentials always match. PMG
+# requires the dedicated /access/password endpoint for password changes on an
+# existing user (PUT /access/users rejects `password`). This reports "changed"
+# every run by design; it only runs in the opt-in bootstrap path.
+- name: pmg_domain_mgmt | Set existing API user password
+  become: true
+  ansible.builtin.command:
+    argv:
+      - pmgsh
+      - set
+      - /access/password
+      - --userid
+      - "{{ pmg_domain_mgmt_prox_username_full }}"
+      - --password
+      - "{{ pmg_domain_mgmt_password }}"
+  delegate_to: "{{ pmg_domain_mgmt_create_user_host }}"
+  when: pmg_domain_mgmt_user_present | bool
+  no_log: true
+  changed_when: true   # PMG has no idempotent password-set; re-applies each run
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_user

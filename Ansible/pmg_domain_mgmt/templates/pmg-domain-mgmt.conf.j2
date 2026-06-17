@@ -1,0 +1,39 @@
+# =============================================================================
+# pmg_domain_mgmt — connection configuration
+# -----------------------------------------------------------------------------
+# Managed by Ansible (role: pmg_domain_mgmt). Local edits will be overwritten.
+#
+# This file is sourced by {{ pmg_domain_mgmt_script_path_full }} and holds the
+# PMG API connection details INCLUDING THE PASSWORD. It is therefore deployed
+# with mode {{ pmg_domain_mgmt_config_mode }} (owner {{ pmg_domain_mgmt_owner }}).
+# Keep it that way — the script itself contains no secrets so it can be world
+# readable, but this file must not be.
+#
+# Any of these values can be overridden at runtime by exporting the matching
+# environment variable before calling the script (handy for CI / automation).
+# =============================================================================
+
+# PMG API base URL, including scheme and port (PMG listens on 8006 by default).
+PMG_HOST={{ pmg_domain_mgmt_host | quote }}
+
+# API user in "<user>@<realm>" form (realm is usually 'pmg', or 'pam' for root).
+PMG_USERNAME={{ pmg_domain_mgmt_prox_username_full | quote }}
+
+# API user password (referenced from Vault in the inventory, never in clear).
+PMG_PASSWORD={{ pmg_domain_mgmt_password | quote }}
+
+# Verify the PMG TLS certificate. Set to "true" once the PMG presents a cert
+# your trust store accepts (e.g. ACME/Let's Encrypt). "false" skips verification
+# (curl -k) and is the safe default only for a freshly installed, self-signed PMG.
+PMG_TLS_VERIFY={{ pmg_domain_mgmt_tls_verify | string | lower }}
+
+# Command used when the script is called without -C/--command.
+PMG_DEFAULT_COMMAND={{ pmg_domain_mgmt_default_command | lower }}
+
+# Seconds to wait before the post-change verification re-read (0 disables it).
+PMG_SLEEP_LENGTH={{ pmg_domain_mgmt_sleep_length }}
+
+# Transport-map defaults (used when -p/-P/-m are not passed on the CLI).
+PMG_TRANSPORT_PORT={{ pmg_domain_mgmt_transport_port }}
+PMG_TRANSPORT_PROTOCOL={{ pmg_domain_mgmt_transport_protocol }}
+PMG_TRANSPORT_USE_MX={{ pmg_domain_mgmt_transport_use_mx | int }}

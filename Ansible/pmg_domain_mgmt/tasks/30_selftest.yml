@@ -1,0 +1,46 @@
+---
+# ============================================================================
+# OPT-IN read-only self-test: run the deployed script once with the 'get'
+# command to confirm it can reach and authenticate against the PMG. 'get'
+# never mutates anything, so this is safe to leave on if you want it.
+#
+# Runs as the script owner (become_user) so it can read the 0600 config file
+# whether the owner is root or a dedicated automation user.
+# ============================================================================
+
+- name: pmg_domain_mgmt | Run read-only self-test
+  become: true
+  become_user: "{{ pmg_domain_mgmt_owner }}"
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ pmg_domain_mgmt_script_path_full }}"
+      - -C
+      - get
+      - -d
+      - "{{ pmg_domain_mgmt_selftest_domain }}"
+  register: pmg_domain_mgmt_selftest_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_selftest
+
+- name: pmg_domain_mgmt | Show self-test output
+  ansible.builtin.debug:
+    var: pmg_domain_mgmt_selftest_result.stdout_lines
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_selftest
+
+- name: pmg_domain_mgmt | Warn if the self-test failed
+  ansible.builtin.debug:
+    msg: >-
+      Self-test exited with rc={{ pmg_domain_mgmt_selftest_result.rc }}.
+      Check connectivity, credentials and TLS settings.
+      stderr: {{ pmg_domain_mgmt_selftest_result.stderr | default('') }}
+  when: pmg_domain_mgmt_selftest_result.rc | int != 0
+  tags:
+    - pmg_domain_mgmt
+    - pmg_domain_mgmt_selftest
