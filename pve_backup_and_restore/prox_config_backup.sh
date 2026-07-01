@@ -1,7 +1,7 @@
 #!/bin/bash
 # Version	      0.4.0
 # Date		      17.05.2026
-# Author 	      DerDanilo 
+# Author 	      DerDanilo
 # Contributors    aboutte, xmirakulix, bootsie123, phidauex
 
 ###########################
@@ -40,7 +40,7 @@ _bdir=${BACK_DIR:-$DEFAULT_BACK_DIR}
 
 # Check backup directory exists
 if [[ ! -d "${_bdir}" ]] ; then
-    echo "Aborting because backup target does not exists" ; exit 1
+    echo "Aborting because backup target ${_bdir} does not exist" ; exit 1
 fi
 
 # temporary storage directory
