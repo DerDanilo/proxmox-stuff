@@ -88,6 +88,7 @@ _filename8="$_tdir/proxmoxlocalbin.$_now.tar"
 _filename9="$_tdir/proxmoxetcpve.$_now.tar"
 _filename10="$_tdir/proxmoxopt.$_now.tar"
 _filename11="$_tdir/proxmoxvzsnippets.$_now.tar"
+_filename12="$_tdir/proxmoxlocalsbin.$_now.tar"
 _filename_final="$_tdir/pve_"$_HOSTNAME"_"$_now".tar.gz"
 
 ##########
@@ -96,7 +97,7 @@ function description {
 # Check to see if we are in an interactive terminal, if not, skip the description
     if [[ -t 0 && -t 1 ]]; then
         clear
-        files_to_be_saved="/etc/*, /var/lib/pve-cluster/*, /var/lib/vz/snippets/*, /root/*, /var/spool/cron/*, /usr/share/kvm/*.vbios"
+        files_to_be_saved="/etc/*, /var/lib/pve-cluster/*, /var/lib/vz/snippets/*, /root/*, /var/spool/cron/*, /usr/local/bin/*, /usr/local/sbin/*, /usr/share/kvm/*.vbios"
         if [ "$BACKUP_OPT_FOLDER" = true ]; then files_to_be_saved="${files_to_be_saved}, /opt/*"; fi
         cat <<EOF
 
@@ -155,6 +156,8 @@ function copyfilesystem {
     if [ "$(ls -A /var/lib/vz/snippets 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename11" /var/lib/vz/snippets/.; fi
 
     if [ "$(ls -A /usr/local/bin 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename8" /usr/local/bin/.; fi
+
+    if [ "$(ls -A /usr/local/sbin 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename12" /usr/local/sbin/.; fi
 
     if [ "$(ls /usr/share/kvm/*.vbios 2>/dev/null)" != "" ] ; then
 	echo backing up custom video bios...

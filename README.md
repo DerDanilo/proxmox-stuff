@@ -104,6 +104,7 @@ BACK_DIR="/mnt/pve/media/backup" /root/proxmox-stuff/pve_backup_and_restore/prox
 | `/var/spool/cron/` | Cron jobs |
 | `/root/` | Root home directory |
 | `/usr/local/bin/` | Local scripts/binaries (if non-empty) |
+| `/usr/local/sbin/` | Local system administration scripts/binaries (if non-empty) |
 | `/usr/share/kvm/*.vbios` | Custom GPU vBIOS files (if present) |
 | `/opt/` | Optional — set `BACKUP_OPT_FOLDER=true` |
 | APT package list | Output of `apt-mark showmanual` |
