@@ -16,16 +16,16 @@
 DEFAULT_BACK_DIR="/mnt/pve/media/backup"
 
 # number of backups to keep before overriding the oldest one
-MAX_BACKUPS=5
+MAX_BACKUPS=${MAX_BACKUPS:-5}
 
 # Set to 'true' to backup /opt/* folder
-BACKUP_OPT_FOLDER=false
+BACKUP_OPT_FOLDER=${BACKUP_OPT_FOLDER:-false}
 
 # Healthchecks.io notification service
 # Set to 1 to use Healthchecks.io
-HEALTHCHECKS=0
+HEALTHCHECKS=${HEALTHCHECKS:-0}
 # Set to the URL of your healthchecks.io check
-HEALTHCHECKS_URL=https://hc-ping.com/your_uuid_here
+HEALTHCHECKS_URL=${HEALTHCHECKS_URL:-https://hc-ping.com/your_uuid_here}
 
 ###########################
 
